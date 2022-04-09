@@ -1,0 +1,10 @@
+/*
+!.gitignore
+!*.wrap
+
+# exclude all subprojects without using wrap file.
+!crc32c/
+!leveldb/
+!secp256k1/
+!univalue/
+!json/
