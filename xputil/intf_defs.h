@@ -35,7 +35,7 @@ namespace xp {
  * Here we use a string instead of a GUID for more good code readability, it of course can be
  * a classical UUID string representation.
  */
-typedef const char *TIntfId;
+typedef const char* TIntfId;
 
 /**
  * \def DECLARE_IID
@@ -62,10 +62,11 @@ extern bool equalIID(const TIntfId id1, const TIntfId id2);
 #define INTERFACE struct
 #endif
 
-class IRefObj {
-  protected:
+class IRefObj
+{
+protected:
     virtual ~IRefObj() = default; // heap-based only!
-  public:
+public:
     /**
      * increase reference count
      */
@@ -97,12 +98,13 @@ struct IInterface : public IRefObj {
     /**
      *	Interface browsing, returns 0 if successful, non-zero error code if fails.
      */
-    virtual int queryInterface(TIntfId iid, void **retIntf) = 0;
+    virtual int queryInterface(TIntfId iid, void** retIntf) = 0;
 
     // helper: detect if another interface is accessible
-    bool supports(TIntfId iid) {
-        IInterface *intf(nullptr);
-        if (0 == this->queryInterface(iid, (void **)&intf)) {
+    bool supports(TIntfId iid)
+    {
+        IInterface* intf(nullptr);
+        if (0 == this->queryInterface(iid, (void**)&intf)) {
             assert(intf);
             if (intf) {
                 intf->unrefNoDelete(); // balance queryInterface()
@@ -113,9 +115,10 @@ struct IInterface : public IRefObj {
     }
 
     template <typename T>
-    T *cast() {
-        T *intf;
-        if (this->queryInterface(T::iid, (void **)&intf)) {
+    T* cast()
+    {
+        T* intf;
+        if (this->queryInterface(T::iid, (void**)&intf)) {
             return nullptr;
         }
         intf->unrefNoDelete(); // Balance counter (incremented within queryInterface)
@@ -131,8 +134,8 @@ struct IInterfaceEx;
 
 _INTERNAL_ struct IQueryState {
     virtual ~IQueryState() = default;
-    virtual void addSearched(IInterfaceEx *) = 0;
-    virtual bool isSearched(IInterfaceEx *) const = 0;
+    virtual void addSearched(IInterfaceEx*) = 0;
+    virtual bool isSearched(IInterfaceEx*) const = 0;
 };
 
 struct IBus;
@@ -145,11 +148,11 @@ struct IInterfaceEx : public IInterface {
     /**
      *	Interface browsing, returns 0 if successful, non-zero error code if fails.
      */
-    _INTERNAL_ virtual int _queryInterface(TIntfId iid, void **retIntf, IQueryState &qst) = 0;
+    _INTERNAL_ virtual int _queryInterface(TIntfId iid, void** retIntf, IQueryState& qst) = 0;
     /**
      * set the hosting bus
      */
-    _INTERNAL_ virtual void _setBus(IBus *bus) = 0;
+    _INTERNAL_ virtual void _setBus(IBus* bus) = 0;
 
     /**
      * [EXPLICIT-RELEASE]
@@ -197,14 +200,14 @@ struct IBus : public IInterfaceEx {
      *  connect(interface _or_ less-secure-bus)
      *
      */
-    [[nodiscard]] virtual bool connect(IInterfaceEx *intf) = 0;
+    [[nodiscard]] virtual bool connect(IInterfaceEx* intf) = 0;
     /**
      * Disconnect the intf ( a normal interface or an interace bus) from this bus.
      * After disconnection, the intf itself and all interfaces hosted on it (for a bus) cannot be reached from
      * interface browsing, however, if it is already retrieved and locked before the disconnection, the interface
      * can still be used until it is released.
      */
-    virtual void disconnect(IInterfaceEx *intf) = 0;
+    virtual void disconnect(IInterfaceEx* intf) = 0;
     /**
      * Get the Bus Level
      *
@@ -217,17 +220,17 @@ struct IBus : public IInterfaceEx {
      * Note there might be multiple buses with the same level in a complex bus network, and the programmer
      * should know what he is doing.
      */
-    virtual IBus *findFirstBusByLevel(int busLevel) const = 0;
+    virtual IBus* findFirstBusByLevel(int busLevel) const = 0;
 
     /**
      *  add a sibling bus as a weak reference.
      */
-    virtual void addSiblingBus(IBus *bus) = 0;
+    virtual void addSiblingBus(IBus* bus) = 0;
     /**
      * Remove weak reference to a sibling bus.
      * called when the sibling bus is being destroyed.
      */
-    virtual void removeSiblingBus(IBus *bus) = 0;
+    virtual void removeSiblingBus(IBus* bus) = 0;
 };
 
 #define IID_IBUS IID(IBus)
@@ -277,47 +280,54 @@ struct [[nodiscard]] IEnumeratorEx : public IRefObj {
  * \endcode
  */
 template <class T>
-class auto_ref {
+class auto_ref
+{
     typedef auto_ref<T> this_type;
 
-  private:
-    T *_intf{nullptr};
+private:
+    T* _intf{nullptr};
 
     NO_HEAP;
 
-  public:
+public:
     auto_ref() = default;
 
-    auto_ref(const this_type &rv) : _intf(rv._intf) {
+    auto_ref(const this_type& rv) : _intf(rv._intf)
+    {
         if (_intf)
             _intf->ref();
     }
-    auto_ref(this_type &&rv) : _intf(rv._intf) {
+    auto_ref(this_type&& rv) : _intf(rv._intf)
+    {
         rv._intf = nullptr;
     }
 
     template <typename U>
-    auto_ref(U from) : _intf{nullptr} {
+    auto_ref(U from) : _intf{nullptr}
+    {
         if constexpr (std::is_base_of<T, std::remove_pointer_t<U>>::value) {
             _intf = from;
             if (_intf)
                 _intf->ref();
         } else {
-            from->queryInterface(T::iid, (void **)&_intf);
+            from->queryInterface(T::iid, (void**)&_intf);
         }
     }
 
-    auto_ref(T *intf, bool refIt = true) : _intf(intf) {
+    auto_ref(T* intf, bool refIt = true) : _intf(intf)
+    {
         if (refIt && _intf)
             _intf->ref();
     }
 
-    ~auto_ref() {
+    ~auto_ref()
+    {
         clear();
     }
 
     template <typename U>
-    void operator=(U intf) {
+    void operator=(U intf)
+    {
         if constexpr (std::is_same_v<nullptr_t, U>) {
             clear(); // support = nullptr
         } else if constexpr (std::is_same_v<decltype(NULL), U>) {
@@ -333,12 +343,13 @@ class auto_ref {
                         _intf->ref();
                 }
             } else {
-                intf->queryInterface(T::iid, (void **)&_intf);
+                intf->queryInterface(T::iid, (void**)&_intf);
             }
         }
     }
 
-    void operator=(const auto_ref<T> &intf) {
+    void operator=(const auto_ref<T>& intf)
+    {
         if (_intf != intf.get()) {
             if (_intf)
                 _intf->unref();
@@ -347,23 +358,27 @@ class auto_ref {
                 _intf->ref();
         }
     }
-    void operator=(auto_ref<T> && rref) {
+    void operator=(auto_ref<T>&& rref)
+    {
         if (_intf)
             _intf->unref();
         _intf = rref._intf;
         rref._intf = nullptr;
     }
 
-    inline T &operator*() const {
+    inline T& operator*() const
+    {
         assert(_intf);
         return *_intf;
     }
 
-    inline operator T *(void) const {
+    inline operator T*(void) const
+    {
         return _intf;
     }
     // The caller just reference it and will *not* unref() the pointer when not using it anymore.
-    inline T *get() const {
+    inline T* get() const
+    {
         return _intf;
     }
     /**
@@ -378,21 +393,25 @@ class auto_ref {
      * \endcode
      */
 
-    inline T *getRef() {
+    inline T* getRef()
+    {
         if (_intf) {
             _intf->ref();
         }
         return _intf;
     }
-    inline T *operator->() const {
+    inline T* operator->() const
+    {
         return _intf;
     }
 
-    inline operator bool() const {
+    inline operator bool() const
+    {
         return _intf != nullptr;
     }
 
-    void clear() {
+    void clear()
+    {
         if (_intf) {
             _intf->unref();
             _intf = nullptr;
@@ -405,14 +424,15 @@ class auto_ref {
 //   auto_ref var = new T();
 //
 template <class T>
-auto_ref(T *) -> auto_ref<T>;
+auto_ref(T*) -> auto_ref<T>;
 
 template <typename T>
 struct checked_unref {
     typedef void result_type;
-    typedef T *argument_type;
+    typedef T* argument_type;
 
-    void operator()(T *p) const {
+    void operator()(T* p) const
+    {
         if (p) {
             p->unref();
         }
@@ -422,9 +442,10 @@ struct checked_unref {
 template <typename T>
 struct checked_ref {
     typedef void result_type;
-    typedef T *argument_type;
+    typedef T* argument_type;
 
-    void operator()(T *p) const {
+    void operator()(T* p) const
+    {
         if (p) {
             p->ref();
         }

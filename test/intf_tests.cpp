@@ -2,75 +2,68 @@
 
 #include <xputil/impl_intfs.h>
 
-namespace
-{
-    constexpr auto tag = "[intf]";
+namespace {
+constexpr auto tag = "[intf]";
 
-    struct Dummy : public xp::IRefObj
+struct Dummy : public xp::IRefObj {
+    Dummy() { count++; }
+    ~Dummy() { count--; }
+    static int count;
+};
+int Dummy::count = 0;
+
+struct IDummy : public xp::IInterface {
+    DECLARE_IID("dummy.2020");
+
+    IDummy()
     {
-        Dummy() { count++; }
-        ~Dummy() { count--; }
-        static int count;
-    };
-    int Dummy::count = 0;
-
-    struct IDummy : public xp::IInterface
+        count++;
+    }
+    ~IDummy()
     {
-        DECLARE_IID("dummy.2020");
+        count--;
+    }
 
-        IDummy()
-        {
-            count++;
-        }
-        ~IDummy()
-        {
-            count--;
-        }
-
-        int value() const
-        {
-            return 1;
-        }
-        static int count;
-    };
-    int IDummy::count = 0;
-    struct IBaz : public xp::IInterfaceEx
+    int value() const
     {
-        DECLARE_IID("aec95632-777d-4bda-9e14-d93f2a77677e");
-        std::string id() const { return "baz"; }
+        return 1;
+    }
+    static int count;
+};
+int IDummy::count = 0;
+struct IBaz : public xp::IInterfaceEx {
+    DECLARE_IID("aec95632-777d-4bda-9e14-d93f2a77677e");
+    std::string id() const { return "baz"; }
 
-        IBaz() { count++; }
-        virtual ~IBaz() { count--; }
-        static int count;
-    };
-    int IBaz::count = 0;
+    IBaz() { count++; }
+    virtual ~IBaz() { count--; }
+    static int count;
+};
+int IBaz::count = 0;
 
-    struct IFoo : public xp::IInterfaceEx
-    {
-        DECLARE_IID("23c88882-8edb-4b04-a017-e2be0b68acea");
-        std::string id() const { return "foo"; }
+struct IFoo : public xp::IInterfaceEx {
+    DECLARE_IID("23c88882-8edb-4b04-a017-e2be0b68acea");
+    std::string id() const { return "foo"; }
 
-        IFoo() { count++; }
-        virtual ~IFoo() { count--; }
-        static int count;
-    };
-    int IFoo::count = 0;
-    struct IBar : public xp::IInterfaceEx
-    {
-        DECLARE_IID("e1205e5b-ecb2-436b-91e9-6fcd5a9631d2");
-        std::string id() const { return "bar"; }
+    IFoo() { count++; }
+    virtual ~IFoo() { count--; }
+    static int count;
+};
+int IFoo::count = 0;
+struct IBar : public xp::IInterfaceEx {
+    DECLARE_IID("e1205e5b-ecb2-436b-91e9-6fcd5a9631d2");
+    std::string id() const { return "bar"; }
 
-        IBar() { count++; }
-        virtual ~IBar() { count--; }
-        static int count;
-    };
-    int IBar::count = 0;
+    IBar() { count++; }
+    virtual ~IBar() { count--; }
+    static int count;
+};
+int IBar::count = 0;
 
 } // namespace
 
 TEST_CASE("refobj", tag)
 {
-
     SECTION("manual ref")
     {
         auto p = new xp::TRefObj<Dummy>;
@@ -160,8 +153,8 @@ class IHello : public xp::IInterface
 class Impl_Hello : public IHello
 {
 public:
-    Impl_Hello(const std::string &name, int age) : name_(name), age_(age) {}
-    Impl_Hello(std::string &&name, int age) : name_(std::move(name)), age_(age) {}
+    Impl_Hello(const std::string& name, int age) : name_(name), age_(age) {}
+    Impl_Hello(std::string&& name, int age) : name_(std::move(name)), age_(age) {}
 
     virtual void hello() {}
 
@@ -172,9 +165,9 @@ public:
 class Impl2_Hello : public xp::TInterface<IHello>
 {
 public:
-   Impl2_Hello(){}
-   Impl2_Hello(const std::string &name, int age) : name_(name), age_(age) {}
-   Impl2_Hello(std::string &&name, int age) : name_(std::move(name)), age_(age) {}
+    Impl2_Hello() {}
+    Impl2_Hello(const std::string& name, int age) : name_(name), age_(age) {}
+    Impl2_Hello(std::string&& name, int age) : name_(std::move(name)), age_(age) {}
 
     virtual void hello() {}
 
@@ -186,7 +179,6 @@ const auto NAME = "Randy"s;
 
 TEST_CASE("perfect type forward", tag)
 {
-
     SECTION("cref")
     {
         xp::auto_ref mi = new xp::TInterface<Impl_Hello>(NAME, 100);
@@ -562,20 +554,20 @@ TEST_CASE("ref-issue", tag)
         bus->connect(new TInterfaceEx<IFoo>());
 
         {
-            IFoo *ifoo = bus->cast<IFoo>();
-            CHECK(static_cast<IRefObj *>(ifoo)->count() == 1); // internal refed by bus.
+            IFoo* ifoo = bus->cast<IFoo>();
+            CHECK(static_cast<IRefObj*>(ifoo)->count() == 1); // internal refed by bus.
         }
 
         { // copy constructor
             auto_ref<IFoo> foo = bus;
-            CHECK(static_cast<IRefObj *>(foo.get())->count() == 2); // refered by bus and foo.
+            CHECK(static_cast<IRefObj*>(foo.get())->count() == 2); // refered by bus and foo.
         }
 
         // assignment constructor
         {
             auto_ref<IFoo> foo;
             foo = bus;
-            CHECK(static_cast<IRefObj *>(foo.get())->count() == 2); // should be refered by bus and foo.
+            CHECK(static_cast<IRefObj*>(foo.get())->count() == 2); // should be refered by bus and foo.
         }
     }
     SECTION("assignment auto_ref => auto_ref")
@@ -584,15 +576,15 @@ TEST_CASE("ref-issue", tag)
             auto_ref<IFoo> foo;
             auto_ref<IFoo> bar(new xp::TInterfaceEx<IFoo>());
             foo = bar;
-            CHECK(static_cast<IRefObj *>(foo.get())->count() == 2); // should be refered by foo and bar.
-            CHECK(IFoo::count == 1);                                // only one shared instance
+            CHECK(static_cast<IRefObj*>(foo.get())->count() == 2); // should be refered by foo and bar.
+            CHECK(IFoo::count == 1);                               // only one shared instance
         }
         {
             auto_ref<IFoo> foo;
             auto_ref<IFoo> bar(new xp::TInterfaceEx<IFoo>());
             foo = std::move(bar);
-            CHECK(static_cast<IRefObj *>(foo.get())->count() == 1); // only be refered by foo.
-            CHECK(IFoo::count == 1);                                // only one shared instance
+            CHECK(static_cast<IRefObj*>(foo.get())->count() == 1); // only be refered by foo.
+            CHECK(IFoo::count == 1);                               // only one shared instance
         }
     }
 }

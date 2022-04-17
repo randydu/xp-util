@@ -5,17 +5,19 @@
 
 namespace {
 template <typename T>
-class exit_exec {
-  private:
+class exit_exec
+{
+private:
     T f_;
 
-  public:
-    exit_exec(T &&f) : f_(std::forward<T>(f)) {}
+public:
+    exit_exec(T&& f) : f_(std::forward<T>(f)) {}
     ~exit_exec() { f_(); }
 };
 
 template <typename T, typename U = exit_exec<T>>
-inline U make_on_exit(T &&f) {
+inline U make_on_exit(T&& f)
+{
     return U(std::forward<T>(f));
 }
 } // namespace
