@@ -5,6 +5,8 @@ srcs = [
 catch2_dep = dependency('catch2')
 catch2_ex_dep = dependency('catch2-ex')
 
-executable('xputil-test', srcs, 
+xputil_test = executable('xputil-test', srcs, 
     dependencies: [catch2_dep, catch2_ex_dep, xputil_lite_dep],
 )
+
+test('xputil-test', xputil_test)

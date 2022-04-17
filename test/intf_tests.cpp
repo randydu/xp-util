@@ -2,70 +2,82 @@
 
 #include <xputil/impl_intfs.h>
 
-namespace {
-constexpr auto tag = "[intf]";
+namespace
+{
+    constexpr auto tag = "[intf]";
 
-struct Dummy : public xp::IRefObj {
-    Dummy() { count++; }
-    ~Dummy() { count--; }
-    static int count;
-};
-int Dummy::count = 0;
+    struct Dummy : public xp::IRefObj
+    {
+        Dummy() { count++; }
+        ~Dummy() { count--; }
+        static int count;
+    };
+    int Dummy::count = 0;
 
-struct IDummy : public xp::IInterface {
-    DECLARE_IID("dummy.2020");
+    struct IDummy : public xp::IInterface
+    {
+        DECLARE_IID("dummy.2020");
 
-    IDummy() {
-        count++;
-    }
-    ~IDummy() {
-        count--;
-    }
+        IDummy()
+        {
+            count++;
+        }
+        ~IDummy()
+        {
+            count--;
+        }
 
-    int value() const {
-        return 1;
-    }
-    static int count;
-};
-int IDummy::count = 0;
-struct IBaz : public xp::IInterfaceEx {
-    DECLARE_IID("aec95632-777d-4bda-9e14-d93f2a77677e");
-    std::string id() const { return "baz"; }
+        int value() const
+        {
+            return 1;
+        }
+        static int count;
+    };
+    int IDummy::count = 0;
+    struct IBaz : public xp::IInterfaceEx
+    {
+        DECLARE_IID("aec95632-777d-4bda-9e14-d93f2a77677e");
+        std::string id() const { return "baz"; }
 
-    IBaz() { count++; }
-    virtual ~IBaz() { count--; }
-    static int count;
-};
-int IBaz::count = 0;
+        IBaz() { count++; }
+        virtual ~IBaz() { count--; }
+        static int count;
+    };
+    int IBaz::count = 0;
 
-struct IFoo : public xp::IInterfaceEx {
-    DECLARE_IID("23c88882-8edb-4b04-a017-e2be0b68acea");
-    std::string id() const { return "foo"; }
+    struct IFoo : public xp::IInterfaceEx
+    {
+        DECLARE_IID("23c88882-8edb-4b04-a017-e2be0b68acea");
+        std::string id() const { return "foo"; }
 
-    IFoo() { count++; }
-    virtual ~IFoo() { count--; }
-    static int count;
-};
-int IFoo::count = 0;
-struct IBar : public xp::IInterfaceEx {
-    DECLARE_IID("e1205e5b-ecb2-436b-91e9-6fcd5a9631d2");
-    std::string id() const { return "bar"; }
+        IFoo() { count++; }
+        virtual ~IFoo() { count--; }
+        static int count;
+    };
+    int IFoo::count = 0;
+    struct IBar : public xp::IInterfaceEx
+    {
+        DECLARE_IID("e1205e5b-ecb2-436b-91e9-6fcd5a9631d2");
+        std::string id() const { return "bar"; }
 
-    IBar() { count++; }
-    virtual ~IBar() { count--; }
-    static int count;
-};
-int IBar::count = 0;
+        IBar() { count++; }
+        virtual ~IBar() { count--; }
+        static int count;
+    };
+    int IBar::count = 0;
 
 } // namespace
 
-TEST_CASE("refobj", tag) {
+TEST_CASE("refobj", tag)
+{
 
-    SECTION("manual ref") {
+    SECTION("manual ref")
+    {
         auto p = new xp::TRefObj<Dummy>;
         CHECK(p->count() == 0);
 
-        SECTION("usage") {
+        SECTION("usage")
+        {
             // lock the reference before accessing
             p->ref();
             CHECK(p->count() == 1);
@@ -79,7 +91,8 @@ TEST_CASE("refobj", tag) {
         }
     }
 
-    SECTION("auto ref") {
+    SECTION("auto ref")
+    {
         xp::auto_ref p = new xp::TRefObj<Dummy>;
         CHECK(p->count() == 1);
     }
@@ -87,13 +100,15 @@ TEST_CASE("refobj", tag) {
     CHECK(Dummy::count == 0);
 }
 
-TEST_CASE("interface", tag) {
+TEST_CASE("interface", tag)
+{
     using namespace xp;
 
     CHECK(IDummy::count == 0);
     CHECK(IFoo::count == 0);
 
-    SECTION("cast") {
+    SECTION("cast")
+    {
         auto_ref obj = new TInterface<IDummy>();
 
         CHECK(IID(IDummy) == std::string("dummy.2020"));
@@ -113,13 +128,15 @@ TEST_CASE("interface", tag) {
     CHECK(IFoo::count == 0);
 }
 
-TEST_CASE("interface-ex", tag) {
+TEST_CASE("interface-ex", tag)
+{
     using namespace xp;
 
     CHECK(IFoo::count == 0);
     CHECK(IBar::count == 0);
 
-    SECTION("foo") {
+    SECTION("foo")
+    {
         auto_ref obj = new TInterfaceEx<IFoo>();
 
         CHECK(obj->supports(IID(IFoo)));
@@ -135,9 +152,74 @@ TEST_CASE("interface-ex", tag) {
     CHECK(IBar::count == 0);
 }
 
-TEST_CASE("intf-auto-browse", tag) {
+class IHello : public xp::IInterface
+{
+    virtual void hello() = 0;
+};
+
+class Impl_Hello : public IHello
+{
+public:
+    Impl_Hello(const std::string &name, int age) : name_(name), age_(age) {}
+    Impl_Hello(std::string &&name, int age) : name_(std::move(name)), age_(age) {}
+
+    virtual void hello() {}
+
+    std::string name_;
+    int age_{0};
+};
+
+class Impl2_Hello : public xp::TInterface<IHello>
+{
+public:
+   Impl2_Hello(){}
+   Impl2_Hello(const std::string &name, int age) : name_(name), age_(age) {}
+   Impl2_Hello(std::string &&name, int age) : name_(std::move(name)), age_(age) {}
+
+    virtual void hello() {}
+
+    std::string name_;
+    int age_{0};
+};
+using namespace std::string_literals;
+const auto NAME = "Randy"s;
+
+TEST_CASE("perfect type forward", tag)
+{
+
+    SECTION("cref")
+    {
+        xp::auto_ref mi = new xp::TInterface<Impl_Hello>(NAME, 100);
+        CHECK(mi->name_ == NAME);
+        CHECK(mi->age_ == 100);
+    }
+    SECTION("rref")
+    {
+        xp::auto_ref mi = new xp::TInterface<Impl_Hello>("Randy"s, 100);
+        CHECK(mi->name_ == "Randy"s);
+        CHECK(mi->age_ == 100);
+    }
+}
+
+TEST_CASE("make_xxx", tag)
+{
+    {
+        xp::auto_ref mi = xp::make_intf<Impl_Hello>(NAME, 100);
+        CHECK(mi->name_ == NAME);
+        CHECK(mi->age_ == 100);
+    }
+    {
+        xp::auto_ref mi = xp::make_intf<Impl2_Hello>("Randy"s, 100);
+        CHECK(mi->name_ == NAME);
+        CHECK(mi->age_ == 100);
+    }
+}
+
+TEST_CASE("intf-auto-browse", tag)
+{
     CHECK(IFoo::count == 0);
-    SECTION("different auto-ref def") {
+    SECTION("different auto-ref def")
+    {
         using namespace xp;
         auto_ref bus1 = new TBus(1);
         auto_ref p1 = new TInterfaceEx<IFoo>();
@@ -164,26 +246,30 @@ TEST_CASE("intf-auto-browse", tag) {
     CHECK(IFoo::count == 0);
 }
 
-TEST_CASE("bus", tag) {
+TEST_CASE("bus", tag)
+{
     using namespace xp;
 
     CHECK(IFoo::count == 0);
     CHECK(IBar::count == 0);
     CHECK(IBaz::count == 0);
 
-    SECTION("single bus") {
+    SECTION("single bus")
+    {
         auto_ref bus = new TBus(0);
         CHECK(bus->count() == 1);
         CHECK(bus->level() == 0);
         CHECK_FALSE(bus->finished());
 
-        SECTION("same interface cannot be added to the same bus") {
+        SECTION("same interface cannot be added to the same bus")
+        {
             auto_ref p1 = new TInterfaceEx<IFoo>();
             CHECK(bus->connect(p1));
             CHECK_FALSE(bus->connect(p1));
         }
 
-        SECTION("same interface cannot be added to different buses") {
+        SECTION("same interface cannot be added to different buses")
+        {
             auto_ref bus1 = new TBus(1);
             auto_ref p1 = new TInterfaceEx<IFoo>();
 
@@ -191,16 +277,20 @@ TEST_CASE("bus", tag) {
             CHECK_FALSE(bus1->connect(p1));
         }
 
-        SECTION("no bus loopback") {
+        SECTION("no bus loopback")
+        {
             CHECK_FALSE(bus->connect(bus));
         }
 
-        SECTION("valid augument") {
+        SECTION("valid augument")
+        {
             CHECK_FALSE(bus->connect(nullptr));
         }
 
-        SECTION("disconnect") {
-            SECTION("single interface") {
+        SECTION("disconnect")
+        {
+            SECTION("single interface")
+            {
                 auto_ref p1 = new TInterfaceEx<IFoo>();
                 CHECK(bus->connect(p1));
                 CHECK(bus->total_intfs() == 1);
@@ -209,7 +299,8 @@ TEST_CASE("bus", tag) {
 
                 CHECK(bus->total_intfs() == 0);
             }
-            SECTION("disconnect a bus") {
+            SECTION("disconnect a bus")
+            {
                 auto_ref bus1 = new TBus(1);
                 CHECK(bus1->connect(new TInterfaceEx<IFoo>()));
                 CHECK(bus->connect(bus1));
@@ -221,38 +312,45 @@ TEST_CASE("bus", tag) {
             }
         }
 
-        SECTION("single bus with two interfaces") {
+        SECTION("single bus with two interfaces")
+        {
             CHECK(bus->connect(new TInterfaceEx<IFoo>()));
             CHECK(bus->connect(new TInterfaceEx<IBar>()));
 
-            SECTION("bus => IFoo") {
+            SECTION("bus => IFoo")
+            {
                 auto_ref foo = bus->cast<IFoo>();
                 CHECK(foo);
                 CHECK(foo->id() == "foo");
 
-                SECTION("IFoo => IBar") {
+                SECTION("IFoo => IBar")
+                {
                     auto_ref bar = foo->cast<IBar>();
                     CHECK(bar);
                     CHECK(bar->id() == "bar");
 
-                    SECTION("IBar => IBus") {
+                    SECTION("IBar => IBus")
+                    {
                         auto_ref my_bus = bar->cast<IBus>();
                         CHECK(my_bus.get() == bus.get());
                     }
                 }
             }
 
-            SECTION("bus => IBar") {
+            SECTION("bus => IBar")
+            {
                 auto_ref bar = bus->cast<IBar>();
                 CHECK(bar);
                 CHECK(bar->id() == "bar");
 
-                SECTION("IBar => IFoo") {
+                SECTION("IBar => IFoo")
+                {
                     auto_ref foo = bar->cast<IFoo>();
                     CHECK(foo);
                     CHECK(foo->id() == "foo");
 
-                    SECTION("IFoo => IBus") {
+                    SECTION("IFoo => IBus")
+                    {
                         auto_ref my_bus = foo->cast<IBus>();
                         CHECK(my_bus.get() == bus.get());
                     }
@@ -263,7 +361,8 @@ TEST_CASE("bus", tag) {
             CHECK(bus->total_intfs() == 2);
             CHECK(bus->total_buses() == 0);
 
-            SECTION("bus finish") {
+            SECTION("bus finish")
+            {
                 bus->finish();
                 CHECK(bus->finished());
                 CHECK(bus->count() == 1);
@@ -273,7 +372,8 @@ TEST_CASE("bus", tag) {
         }
     }
 
-    SECTION("two buses") {
+    SECTION("two buses")
+    {
         auto_ref bus0 = new TBus(0);
         auto_ref foo = new TInterfaceEx<IFoo>();
         CHECK(bus0->connect(foo));
@@ -281,7 +381,8 @@ TEST_CASE("bus", tag) {
         CHECK(bus0->total_intfs() == 1);
         CHECK(bus0->total_buses() == 0);
 
-        SECTION("bus-1") {
+        SECTION("bus-1")
+        {
             auto_ref bus1 = new TBus(1);
             auto_ref bar = new TInterfaceEx<IBar>();
             CHECK(bus1->connect(bar));
@@ -292,12 +393,14 @@ TEST_CASE("bus", tag) {
             CHECK(bus0->total_buses() == 1);
             CHECK(bus1->total_buses() == 0);
 
-            SECTION("bus0::foo => bus1::bar") {
+            SECTION("bus0::foo => bus1::bar")
+            {
                 auto_ref bar = foo->cast<IBar>();
                 CHECK(bar);
                 CHECK(bar.get() == bar.get());
             }
-            SECTION("bus1::bar !=> bus0::foo") {
+            SECTION("bus1::bar !=> bus0::foo")
+            {
                 auto_ref foo = bar->cast<IFoo>();
                 CHECK_FALSE(foo);
             }
@@ -305,7 +408,8 @@ TEST_CASE("bus", tag) {
             CHECK(bus1->count() == 2); // bus0-connected + local auto_ref
         }
 
-        SECTION("sibling bus [0,0]") {
+        SECTION("sibling bus [0,0]")
+        {
             auto_ref bus1 = new TBus(0);
             auto_ref bar = new TInterfaceEx<IBar>();
             CHECK(bus1->connect(bar));
@@ -317,12 +421,14 @@ TEST_CASE("bus", tag) {
             CHECK(bus1->total_buses() == 0);
             CHECK(bus1->total_siblings() == 1);
 
-            SECTION("bus0::foo => bus1::bar") {
+            SECTION("bus0::foo => bus1::bar")
+            {
                 auto_ref bar = foo->cast<IBar>();
                 CHECK(bar);
                 CHECK(bar.get() == bar.get());
             }
-            SECTION("bus1::bar => bus0::foo") {
+            SECTION("bus1::bar => bus0::foo")
+            {
                 auto_ref foo = bar->cast<IFoo>();
                 CHECK(foo);
             }
@@ -334,7 +440,8 @@ TEST_CASE("bus", tag) {
             CHECK_FALSE(bus0->finished()); // bus0 not affected.
         }
 
-        SECTION("sibling bus, no dangling bus") {
+        SECTION("sibling bus, no dangling bus")
+        {
             CHECK_FALSE(bus0->connect(new TBus(0)));
             CHECK(bus0->connect(new TBus(1)));
         }
@@ -342,10 +449,12 @@ TEST_CASE("bus", tag) {
         CHECK(bus0->count() == 1);
     }
 
-    SECTION("three buses") {
+    SECTION("three buses")
+    {
         using namespace xp;
 
-        SECTION("cascade [0->1->2]") {
+        SECTION("cascade [0->1->2]")
+        {
             auto_ref bus0 = new TBus(0);
             CHECK(bus0->connect(new TInterfaceEx<IBaz>()));
             auto baz = bus0->cast<IBaz>();
@@ -405,7 +514,8 @@ TEST_CASE("bus", tag) {
             CHECK(bus2->findFirstBusByLevel(3) == nullptr);
         }
 
-        SECTION("[0, 0 -> 1]") {
+        SECTION("[0, 0 -> 1]")
+        {
             auto_ref bus0 = new TBus(0);
             auto_ref bus01 = new TBus(0);
 
@@ -442,10 +552,12 @@ TEST_CASE("bus", tag) {
     CHECK(IBar::count == 0);
 }
 
-TEST_CASE("ref-issue", tag) {
+TEST_CASE("ref-issue", tag)
+{
     using namespace xp;
 
-    SECTION("bus nav") {
+    SECTION("bus nav")
+    {
         auto_ref<IBus> bus = new TBus(0);
         bus->connect(new TInterfaceEx<IFoo>());
 
@@ -466,20 +578,21 @@ TEST_CASE("ref-issue", tag) {
             CHECK(static_cast<IRefObj *>(foo.get())->count() == 2); // should be refered by bus and foo.
         }
     }
-    SECTION("assignment auto_ref => auto_ref"){
+    SECTION("assignment auto_ref => auto_ref")
+    {
         {
-        auto_ref<IFoo> foo;
-        auto_ref<IFoo> bar(new xp::TInterfaceEx<IFoo>());
-        foo = bar;
-        CHECK(static_cast<IRefObj *>(foo.get())->count() == 2); // should be refered by foo and bar.
-        CHECK(IFoo::count == 1);                                // only one shared instance
+            auto_ref<IFoo> foo;
+            auto_ref<IFoo> bar(new xp::TInterfaceEx<IFoo>());
+            foo = bar;
+            CHECK(static_cast<IRefObj *>(foo.get())->count() == 2); // should be refered by foo and bar.
+            CHECK(IFoo::count == 1);                                // only one shared instance
         }
         {
-        auto_ref<IFoo> foo;
-        auto_ref<IFoo> bar(new xp::TInterfaceEx<IFoo>());
-        foo = std::move(bar);
-        CHECK(static_cast<IRefObj *>(foo.get())->count() == 1); // only be refered by foo.
-        CHECK(IFoo::count == 1);                                // only one shared instance
+            auto_ref<IFoo> foo;
+            auto_ref<IFoo> bar(new xp::TInterfaceEx<IFoo>());
+            foo = std::move(bar);
+            CHECK(static_cast<IRefObj *>(foo.get())->count() == 1); // only be refered by foo.
+            CHECK(IFoo::count == 1);                                // only one shared instance
         }
     }
 }
