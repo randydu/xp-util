@@ -192,8 +192,7 @@ void TBus::addSiblingBus(IBus* bus)
 {
     assert_api_not_closed();
 
-    auto it = find(_siblings.begin(), _siblings.end(), bus);
-    if (it == _siblings.end()) {
+    if(auto it = find(_siblings.begin(), _siblings.end(), bus); it == _siblings.end()) {
         _siblings.push_back(bus);
     }
 }
@@ -202,8 +201,7 @@ void TBus::removeSiblingBus(IBus* bus)
 {
     assert_api_not_closed();
 
-    auto it = find(_siblings.begin(), _siblings.end(), bus);
-    if (it != _siblings.end()) {
+    if(auto it = find(_siblings.begin(), _siblings.end(), bus); it != _siblings.end()) {
         _siblings.erase(it);
     }
 }
@@ -228,18 +226,14 @@ int TBus::_queryInterface(TIntfId iid, void** retIntf, IQueryState& qst)
     }
     // scan sibling buses
     for (auto bus : _siblings) {
-        if (!qst.isSearched(bus)) {
-            if (bus->_queryInterface(iid, retIntf, qst) == 0) {
-                return 0;
-            }
+        if (!qst.isSearched(bus) && bus->_queryInterface(iid, retIntf, qst) == 0) {
+            return 0;
         }
     }
     // scanning connected upper-level/less-secure buses
     for (auto bus : _buses) {
-        if (!qst.isSearched(bus)) {
-            if (bus->_queryInterface(iid, retIntf, qst) == 0) {
-                return 0;
-            }
+        if (!qst.isSearched(bus) && bus->_queryInterface(iid, retIntf, qst) == 0) {
+            return 0;
         }
     }
 
