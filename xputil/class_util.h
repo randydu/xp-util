@@ -28,24 +28,23 @@ constexpr bool is_callable()
 
 
 // static member checking
-#define HAS_STATIC_VAR(t, cls, member) (std::is_same_v<t, decltype(cls::member)>)
+#define HAS_STATIC_VAR(cls, t, member) (std::is_same_v<t, decltype(cls::member)>)
 
-#define HAS_STATIC_FUNCTION_NO_PARAM(ret_t, cls, member) (std::is_same_v<std::invoke_result_t<decltype(cls::member)>, ret_t>)
-#define HAS_STATIC_FUNCTION(ret_t, cls, member, ...) (std::is_same_v<std::invoke_result_t<decltype(cls::member), __VA_ARGS__>, ret_t>)
+#define HAS_STATIC_FUNCTION(cls, ret_t, member, ...) (std::is_same_v<std::invoke_result_t<decltype(cls::member) __VA_OPT__(, __VA_ARGS__)>, ret_t>)
 
-#define HAS_FUNCTION(ret_t, cls, member, ...) (std::is_same_v<std::invoke_result_t<decltype(&cls::member), decltype(std::declval<cls>()), __VA_ARGS__>, ret_t>)
+#define HAS_FUNCTION(cls, ret_t, member, ...) (std::is_same_v<std::invoke_result_t<decltype(&cls::member), decltype(std::declval<cls>()) __VA_OPT__(, __VA_ARGS__)>, ret_t>)
 
-#define MUST_HAS_STATIC_VAR(t, cls, member)                                                           \
+#define MUST_HAS_STATIC_VAR(cls, t, member)                                                           \
     {                                                                                                 \
-        static_assert(HAS_STATIC_VAR(t, cls, member), "invalid static variable: " #cls "::" #member); \
+        static_assert(HAS_STATIC_VAR(cls, t, member), "invalid static variable: " #cls "::" #member); \
     }
-#define MUST_HAS_STATIC_FUNCTION(ret_t, cls, member, ...)                                                                   \
+#define MUST_HAS_STATIC_FUNCTION(cls, ret_t, member, ...)                                                                   \
     {                                                                                                                       \
-        static_assert(HAS_STATIC_FUNCTION(ret_t, cls, member, __VA_ARGS__), "invalid static function: " #cls "::" #member); \
+        static_assert(HAS_STATIC_FUNCTION(cls, ret_t, member, __VA_ARGS__), "invalid static function: " #cls "::" #member); \
     }
-#define MUST_HAS_FUNCTION(ret_t, cls, member, ...)                                                                   \
+#define MUST_HAS_FUNCTION(cls, ret_t, member, ...)                                                                   \
     {                                                                                                                \
-        static_assert(HAS_FUNCTION(ret_t, cls, member, __VA_ARGS__), "invalid member function: " #cls "::" #member); \
+        static_assert(HAS_FUNCTION(cls, ret_t, member, __VA_ARGS__), "invalid member function: " #cls "::" #member); \
     }
 
 //#define HAS_MEMBER_FUNCTION(cls, f, ret_t, a) (std::is_same_v<decltype(std::bind(&cls::f, std::declval<cls>(), std::declval<a>())()), ret_t>)
