@@ -7,6 +7,7 @@ const auto tag = "cls";
 class A
 {
 public:
+    constexpr static int id = 1;
     static std::string name;
     static int count;
     static void dummy() {}
@@ -24,6 +25,7 @@ public:
 TEST_CASE("is_callable", tag)
 {
     // static_assert(xp::is_callable(A::hello));
+    static_assert(HAS_STATIC_VAR(A, const int, id));
 
     static_assert(HAS_STATIC_VAR(A, std::string, name));
     static_assert(HAS_STATIC_VAR(A, int, count));
