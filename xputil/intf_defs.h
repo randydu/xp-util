@@ -4,6 +4,7 @@
 #include <cassert>
 #include <cstddef>
 #include <stdexcept>
+#include <unordered_set>
 
 #if defined(_WIN_)
 #include <windows.h>
@@ -92,7 +93,7 @@ public:
  *
  * It's platform independent and Windows COM interface can be converted to IInterface via an interface adapter.
  */
-struct IInterface : public IRefObj {
+struct IInterface : virtual public IRefObj {
     DECLARE_IID("B4FF784E-2DDA-4CA2-BC84-4AAD35FCAAF3");
 
     /**
@@ -132,10 +133,19 @@ struct IInterface : public IRefObj {
 
 struct IInterfaceEx;
 
-_INTERNAL_ struct IQueryState {
-    virtual ~IQueryState() = default;
-    virtual void addSearched(IInterfaceEx*) = 0;
-    virtual bool isSearched(IInterfaceEx*) const = 0;
+_INTERNAL_ struct QueryState {
+private:
+    std::unordered_set<void*> _searched;
+
+public:
+    void addSearched(void* p)
+    {
+        _searched.insert(p);
+    }
+    bool isSearched(void* p) const
+    {
+        return _searched.count(p);
+    }
 };
 
 struct IBus;
@@ -148,7 +158,7 @@ struct IInterfaceEx : public IInterface {
     /**
      *	Interface browsing, returns 0 if successful, non-zero error code if fails.
      */
-    _INTERNAL_ virtual int _queryInterface(TIntfId iid, void** retIntf, IQueryState& qst) = 0;
+    _INTERNAL_ virtual int _queryInterface(TIntfId iid, void** retIntf, QueryState& qst) = 0;
     /**
      * set the hosting bus
      */

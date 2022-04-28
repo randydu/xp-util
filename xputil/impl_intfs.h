@@ -152,28 +152,6 @@ T* make_intf(TArgs&&... args)
     }
 }
 
-class TQueryState : public IQueryState
-{
-private:
-    std::vector<IInterfaceEx*> _searched;
-
-public:
-    virtual void addSearched(IInterfaceEx* p) override
-    {
-        p->ref();
-        _searched.push_back(p);
-    }
-    virtual bool isSearched(IInterfaceEx* p) const override
-    {
-        return std::find(_searched.cbegin(), _searched.cend(), p) != _searched.cend();
-    }
-
-    virtual ~TQueryState()
-    {
-        for (auto e : _searched)
-            e->unref();
-    }
-};
 
 /**
  * \class TInterfaceEx<>
@@ -214,7 +192,7 @@ public:
  *
  *
  */
-template <class T>
+template <class T, bool check_iid = true>
 class TInterfaceEx : public TRefObj<T>
 {
 private:
@@ -249,12 +227,14 @@ public:
     }
 
     // IInterfaceEx
-    _INTERNAL_ virtual int _queryInterface(TIntfId iid, void** retIntf, IQueryState& qst) override
+    _INTERNAL_ virtual int _queryInterface(TIntfId iid, void** retIntf, QueryState& qst) override
     {
-        if (equalIID(iid, T::iid) || equalIID(iid, IID_IINTERFACEEX) || equalIID(iid, IID_IINTERFACE)) {
-            this->ref();
-            *retIntf = (IInterface*)(this);
-            return 0;
+        if constexpr (check_iid) {
+            if (equalIID(iid, T::iid) || equalIID(iid, IID_IINTERFACEEX) || equalIID(iid, IID_IINTERFACE)) {
+                this->ref();
+                *retIntf = (IInterface*)(this);
+                return 0;
+            }
         }
 
         qst.addSearched(this);
@@ -291,7 +271,7 @@ public:
     // IInterface
     virtual int queryInterface(TIntfId iid, void** retIntf) override
     {
-        TQueryState qst;
+        QueryState qst;
         return _queryInterface(iid, retIntf, qst);
     }
 };
@@ -308,72 +288,50 @@ T* make_intfx(TArgs&&... args)
     }
 }
 
-#define BEGIN_INTERFACES          \
-public:                           \
-    bool supportIntf(TIntfId iid) \
-    {
-#define IMPL_INTERFACE(intf)          \
-    {                                 \
-        if (equalIID(iid, intf::iid)) \
-            return true;              \
-    }
+template <class T, class S1, class S2>
+class TMultiInterfaceEx : public TInterfaceEx<T, false>
+{
+    using parent_t = TInterfaceEx<T, false>;
 
-#define END_INTERFACES \
-    return false;      \
-    }
-
-/*
-template <class T>
-class TMultiInterfaceEx : public T {
-  protected:
-    IBus *_bus;
-
+protected:
     virtual ~TMultiInterfaceEx() = default;
 
-  public:
+public:
     template <typename... Ts>
-    TMultiInterfaceEx(Ts... args) : T(args...), _bus(nullptr), _count(0) {}
+    TMultiInterfaceEx(Ts&&... args) : parent_t(std::forward<Ts>(args)...)
+    {
+    }
 
-    //unit-test only
-
-    //IInterfaceEx
-    _INTERNAL_ virtual int _queryInterface(TIntfId iid, void **retIntf, IQueryState &qst) override {
-        if (T::supportIntf(iid) || equalIID(iid, IID_IINTERFACEEX) || equalIID(iid, IID_IINTERFACE)) {
+    _INTERNAL_ virtual int _queryInterface(TIntfId iid, void** retIntf, QueryState& qst) override
+    {
+        if (equalIID(iid, IID(S1))) {
             this->ref();
-            *retIntf = (IInterface *)(this);
+            *retIntf = static_cast<S1*>(this);
+            return 0;
+        }
+        if (equalIID(iid, IID(S2))) {
+            this->ref();
+            *retIntf = static_cast<S2*>(this);
             return 0;
         }
 
-        qst.addSearched(this);
+        parent_t* p = static_cast<parent_t*>(this);
+        if (equalIID(iid, IID_IINTERFACEEX) || equalIID(iid, IID_IINTERFACEEX)) {
+            this->ref();
+            *retIntf = p;
+            return 0;
+        }
 
-        if (_bus) {
-            if (!qst.isSearched(_bus)) {
-                return _bus->_queryInterface(iid, retIntf, qst);
+        qst.addSearched(p);
+
+        if (parent_t::_bus) {
+            if (!qst.isSearched(parent_t::_bus)) {
+                return parent_t::_bus->_queryInterface(iid, retIntf, qst);
             }
         }
         return 1;
     }
-
-    _INTERNAL_ virtual void _setBus(IBus *bus) override {
-        if (_bus != nullptr && bus != nullptr)
-            throw std::logic_error("TMultiInterfaceEx::_setBus() >> hosting bus already exists!");
-        _bus = bus;
-    }
-
-    virtual void finish() override {}
-    virtual bool finished() override {}
-    virtual int getFinishPass() const override { return 1; }
-
-    //IInterface
-    virtual int queryInterface(TIntfId iid, void **retIntf) override {
-        TQueryState qst;
-        return _queryInterface(iid, retIntf, qst);
-    }
-
-    //IRefObj
-    IMPL_REFOBJ(TMultiInterfaceEx);
 };
-*/
 
 // IBus
 class TBus : public TRefObj<IBus>
@@ -418,7 +376,7 @@ public:
     virtual void removeSiblingBus(IBus* bus) override;
 
     // IInterfaceEx
-    virtual int _queryInterface(TIntfId iid, void** retIntf, IQueryState& qst) override;
+    virtual int _queryInterface(TIntfId iid, void** retIntf, QueryState& qst) override;
     virtual void _setBus(IBus* bus) override
     { /* unused */
     }
@@ -436,7 +394,7 @@ public:
     // IInterface
     virtual int queryInterface(TIntfId iid, void** retIntf) override
     {
-        TQueryState qst;
+        QueryState qst;
         return _queryInterface(iid, retIntf, qst);
     }
 };

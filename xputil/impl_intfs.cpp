@@ -80,7 +80,7 @@ bool TBus::connect(IInterfaceEx* intf)
         return false; // no loop-back.
 
     IBus* bus;
-    TQueryState qst;
+    QueryState qst;
     if (0 == intf->_queryInterface(IID_IBUS, (void**)&bus, qst)) {
         ON_EXIT(bus->unref();); // balance queryInterface
 
@@ -206,7 +206,7 @@ void TBus::removeSiblingBus(IBus* bus)
     }
 }
 
-int TBus::_queryInterface(TIntfId iid, void** retIntf, IQueryState& qst)
+int TBus::_queryInterface(TIntfId iid, void** retIntf, QueryState& qst)
 {
     if (equalIID(iid, IID_IBUS) || equalIID(iid, IID_IINTERFACEEX) || equalIID(iid, IID_IINTERFACE)) {
         *retIntf = (IInterface*)(this);
