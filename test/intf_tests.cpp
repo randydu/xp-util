@@ -80,9 +80,9 @@ struct IWoo : public xp::IInterfaceEx {
     virtual std::string id() const = 0;
 };
 struct Foobar : virtual IFoo, virtual IBar {
-    virtual int foo() const override { return 3; }
-    virtual int bar() const override { return 4; }
-    virtual std::string id() const override { return "foobar"; }
+    virtual int foo() const { return 3; }
+    virtual int bar() const { return 4; }
+    virtual std::string id() const { return "foobar"; }
 
     Foobar() { count++; }
     virtual ~Foobar() { count--; }
