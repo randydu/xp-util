@@ -11,6 +11,7 @@
 #ifndef _XP_IMPL_INTFS_H_
 #define _XP_IMPL_INTFS_H_
 
+#include "class_util.h"
 #include "intf_defs.h"
 #include "on_exit.h"
 
@@ -140,6 +141,50 @@ public:
     }
 };
 
+template <class T, class... S>
+class TMultiInterface : public TRefObj<T>
+{
+public:
+    template <typename... Ts>
+    TMultiInterface(Ts&&... args) : TRefObj<T>(std::forward<Ts>(args)...)
+    {
+    }
+
+    // IInterface
+    virtual int queryInterface(TIntfId iid, void** retIntf) override
+    {
+        if (match_iid<S...>(iid, retIntf)) {
+            return 0;
+        }
+        if (equalIID(iid, IID_IINTERFACE)) {
+            this->ref();
+            *retIntf = (IInterface*)(this);
+            return 0;
+        }
+
+        return 1;
+    }
+
+protected:
+    virtual ~TMultiInterface() = default;
+
+private:
+    template <typename U, typename... V>
+    bool match_iid(TIntfId iid, void** retIntf)
+    {
+        if (equalIID(iid, IID(U))) {
+            this->ref();
+            *retIntf = static_cast<U*>(this);
+            return true;
+        }
+        if constexpr (sizeof...(V) > 0) {
+            return match_iid<V...>(iid, retIntf);
+        } else {
+            return false;
+        }
+    }
+};
+
 template <typename T, typename... TArgs>
 T* make_intf(TArgs&&... args)
 {
@@ -229,7 +274,7 @@ public:
     // IInterfaceEx
     _INTERNAL_ virtual int _queryInterface(TIntfId iid, void** retIntf, QueryState& qst) override
     {
-        if constexpr (check_iid) {
+        if constexpr (check_iid) { // multi-interfaceex check by iteself; also fix ambiguous T::iid compiling issue when T inherits multiple interfaces.
             if (equalIID(iid, T::iid) || equalIID(iid, IID_IINTERFACEEX) || equalIID(iid, IID_IINTERFACE)) {
                 this->ref();
                 *retIntf = (IInterface*)(this);
@@ -288,10 +333,25 @@ T* make_intfx(TArgs&&... args)
     }
 }
 
-template <class T, class S1, class S2>
+template <class T, class... S>
 class TMultiInterfaceEx : public TInterfaceEx<T, false>
 {
     using parent_t = TInterfaceEx<T, false>;
+
+    template <typename U, typename... V>
+    bool match_iid(TIntfId iid, void** retIntf)
+    {
+        if (equalIID(iid, IID(U))) {
+            this->ref();
+            *retIntf = static_cast<U*>(this);
+            return true;
+        }
+        if constexpr (sizeof...(V) > 0) {
+            return match_iid<V...>(iid, retIntf);
+        } else {
+            return false;
+        }
+    }
 
 protected:
     virtual ~TMultiInterfaceEx() = default;
@@ -302,16 +362,18 @@ public:
     {
     }
 
+    // First interface-ex provided
+    // When connecting to bus, to avoid IInterfaceEx ambiguous due to multiple IInterfaceEx inheritance.
+    // bus->connect(multifx->first_service());
+    auto first_service()
+    {
+        using first_type = first_type_t<S...>;
+        return static_cast< first_type*>(this);
+    }
+
     _INTERNAL_ virtual int _queryInterface(TIntfId iid, void** retIntf, QueryState& qst) override
     {
-        if (equalIID(iid, IID(S1))) {
-            this->ref();
-            *retIntf = static_cast<S1*>(this);
-            return 0;
-        }
-        if (equalIID(iid, IID(S2))) {
-            this->ref();
-            *retIntf = static_cast<S2*>(this);
+        if (match_iid<S...>(iid, retIntf)) {
             return 0;
         }
 

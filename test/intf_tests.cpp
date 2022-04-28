@@ -74,6 +74,11 @@ struct Bar : IBar {
 int Bar::count{0};
 
 
+struct IWoo : public xp::IInterfaceEx {
+    DECLARE_IID("7b306438-8c2c-490b-96c9-77eb58857bd7");
+    virtual int woo() const = 0;
+    virtual std::string id() const = 0;
+};
 struct Foobar : virtual IFoo, virtual IBar {
     virtual int foo() const override { return 3; }
     virtual int bar() const override { return 4; }
@@ -85,6 +90,17 @@ struct Foobar : virtual IFoo, virtual IBar {
 };
 int Foobar::count{0};
 
+struct Foobarwoo : virtual IFoo, virtual IBar, virtual IWoo {
+    virtual int foo() const override { return 5; }
+    virtual int bar() const override { return 6; }
+    virtual int woo() const override { return 7; }
+    virtual std::string id() const override { return "foobarwoo"; }
+
+    Foobarwoo() { count++; }
+    virtual ~Foobarwoo() { count--; }
+    static int count;
+};
+int Foobarwoo::count{0};
 } // namespace
 
 TEST_CASE("refobj", tag)
@@ -614,7 +630,7 @@ TEST_CASE("ref-issue", tag)
     }
 }
 
-TEST_CASE("multi-intfx", tag)
+TEST_CASE("multi-intfx-2", tag)
 {
     xp::auto_ref fb = new xp::TMultiInterfaceEx<Foobar, IFoo, IBar>();
     CHECK(Foobar::count == 1);
@@ -639,5 +655,68 @@ TEST_CASE("multi-intfx", tag)
         CHECK(bar->id() == "foobar");
         CHECK(bar->bar() == 4);
         CHECK(bar->count() == 2);
+    }
+}
+
+TEST_CASE("multi-intfx-3", tag)
+{
+    xp::auto_ref fbw = new xp::TMultiInterfaceEx<Foobarwoo, IFoo, IBar, IWoo>();
+    CHECK(Foobarwoo::count == 1);
+    CHECK(fbw->count() == 1);
+
+    CHECK(fbw->id() == "foobarwoo");
+    CHECK(fbw->foo() == 5);
+    CHECK(fbw->bar() == 6);
+    CHECK(fbw->woo() == 7);
+
+    SECTION("IFoo")
+    {
+        xp::auto_ref<IFoo> foo(fbw);
+        CHECK(foo);
+        CHECK(foo->id() == "foobarwoo");
+        CHECK(foo->foo() == 5);
+        CHECK(foo->count() == 2);
+
+        SECTION("IBar")
+        {
+            xp::auto_ref<IBar> bar(fbw);
+            CHECK(bar);
+            CHECK(bar->id() == "foobarwoo");
+            CHECK(bar->bar() == 6);
+            CHECK(bar->count() == 3);
+
+            SECTION("IWoo")
+            {
+                xp::auto_ref<IWoo> woo(fbw);
+                CHECK(woo);
+                CHECK(woo->id() == "foobarwoo");
+                CHECK(woo->woo() == 7);
+                CHECK(woo->count() == 4);
+            }
+        }
+    }
+    SECTION("bus connected")
+    {
+        xp::auto_ref bus0 = new xp::TBus(0);
+        CHECK(bus0->connect(fbw->first_service()));
+
+        CHECK(fbw->count() == 2);
+
+        xp::auto_ref<IBar> bar = bus0;
+        CHECK(fbw->count() == 3);
+
+        CHECK(bar);
+        CHECK(bar->id() == "foobarwoo");
+        CHECK(bar->bar() == 6);
+        CHECK(bar->count() == 3);
+
+        SECTION("bar => woo")
+        {
+            xp::auto_ref<IWoo> woo(bar);
+            CHECK(woo);
+            CHECK(woo->id() == "foobarwoo");
+            CHECK(woo->woo() == 7);
+            CHECK(woo->count() == 4);
+        }
     }
 }
