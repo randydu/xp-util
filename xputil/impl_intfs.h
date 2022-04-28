@@ -30,53 +30,53 @@ enum class ref_api_t {
 };
 using ref_monitor_t = std::function<void(IRefObj* obj, int /*count*/, ref_api_t api)>;
 
-#define IMPL_REFOBJ(a)                                                                 \
-private:                                                                               \
-    ref_monitor_t _monitor;                                                            \
-                                                                                       \
-protected:                                                                             \
-    int _count;                                                                        \
-                                                                                       \
-public:                                                                                \
-    virtual void ref() override                                                        \
-    {                                                                                  \
-        if (_monitor)                                                                  \
-            _monitor(this, _count, ref_api_t::REF);                                    \
-        ++_count;                                                                      \
-    }                                                                                  \
-    virtual void unref() override                                                      \
-    {                                                                                  \
-        if (_monitor)                                                                  \
-            _monitor(this, _count, ref_api_t::UNREF);                                  \
-        if (_count == 0)                                                               \
-            throw std::logic_error(#a "::unref() >> ref-count is already 0.");         \
-        if (--_count == 0) {                                                           \
-            delete this;                                                               \
-        }                                                                              \
-    }                                                                                  \
-    virtual void unrefNoDelete() override                                              \
-    {                                                                                  \
-        if (_monitor)                                                                  \
-            _monitor(this, _count, ref_api_t::UNREF_NODELETE);                         \
-        if (_count == 0)                                                               \
-            throw std::logic_error(#a "::unrefNoDelete() >> ref-count is already 0."); \
-        --_count;                                                                      \
-    }                                                                                  \
-    virtual int count() const override { return _count; }                              \
-    void setMonitor(ref_monitor_t monitor) { _monitor = monitor; }
-
 template <class T>
 class TRefObj : public T
 {
-protected:
-    virtual ~TRefObj() = default; // protected destructor to enforce heap-based allocation.
 public:
     template <typename... Ts>
-    TRefObj(Ts&&... args) : T(std::forward<Ts>(args)...), _count(0)
+    TRefObj(Ts&&... args) : T(std::forward<Ts>(args)...)
     {
     }
+    TRefObj(const TRefObj&) = delete;
+    TRefObj& operator=(const TRefObj&) = delete;
+    TRefObj(TRefObj&& other) = delete;
+    TRefObj& operator=(TRefObj&& other) = delete;
 
-    IMPL_REFOBJ(TRefObj);
+    // IRefObj
+    virtual void ref() override
+    {
+        if (_monitor)
+            _monitor(this, _count, ref_api_t::REF);
+        ++_count;
+    }
+    virtual void unref() override
+    {
+        if (_monitor)
+            _monitor(this, _count, ref_api_t::UNREF);
+        if (_count == 0)
+            throw std::logic_error("unref() >> ref-count is already 0.");
+        if (--_count == 0) {
+            delete this;
+        }
+    }
+    virtual void unrefNoDelete() override
+    {
+        if (_monitor)
+            _monitor(this, _count, ref_api_t::UNREF_NODELETE);
+        if (_count == 0)
+            throw std::logic_error("::unrefNoDelete() >> ref-count is already 0.");
+        --_count;
+    }
+    virtual int count() const override { return _count; }
+
+    void setMonitor(ref_monitor_t monitor) { _monitor = monitor; }
+
+protected:
+    virtual ~TRefObj() = default; // protected destructor to enforce heap-based allocation.
+private:
+    int _count{0};
+    ref_monitor_t _monitor;
 };
 
 template <typename T, typename... TArgs>
@@ -116,14 +116,14 @@ IRefObj* make_ref(TArgs&&... args)
  */
 
 template <class T>
-class TInterface : public T
+class TInterface : public TRefObj<T>
 {
 protected:
     virtual ~TInterface() = default;
 
 public:
     template <typename... Ts>
-    TInterface(Ts&&... args) : T(std::forward<Ts>(args)...), _count(0)
+    TInterface(Ts&&... args) : TRefObj<T>(std::forward<Ts>(args)...)
     {
     }
 
@@ -138,9 +138,6 @@ public:
 
         return 1;
     }
-
-    // IRefObj
-    IMPL_REFOBJ(TInterface);
 };
 
 template <typename T, typename... TArgs>
@@ -218,7 +215,7 @@ public:
  *
  */
 template <class T>
-class TInterfaceEx : public T
+class TInterfaceEx : public TRefObj<T>
 {
 private:
     // Release internal resources
@@ -231,7 +228,7 @@ private:
     }
 
 protected:
-    IBus* _bus;
+    IBus* _bus{nullptr};
     bool _cleared{false}; // any apis should not be called any more
     int _finish_pass{1};
 
@@ -247,7 +244,7 @@ protected:
 
 public:
     template <typename... Ts>
-    TInterfaceEx(Ts&&... args) : T(std::forward<Ts>(args)...), _bus(nullptr), _count(0)
+    TInterfaceEx(Ts&&... args) : TRefObj<T>(std::forward<Ts>(args)...)
     {
     }
 
@@ -297,9 +294,6 @@ public:
         TQueryState qst;
         return _queryInterface(iid, retIntf, qst);
     }
-
-    // IRefObj
-    IMPL_REFOBJ(TInterfaceEx);
 };
 
 template <typename T, typename... TArgs>
@@ -382,7 +376,7 @@ class TMultiInterfaceEx : public T {
 */
 
 // IBus
-class TBus : public IBus
+class TBus : public TRefObj<IBus>
 {
 private:
     enum {
@@ -404,7 +398,7 @@ protected:
     virtual ~TBus() { clear(); }
 
 public:
-    TBus(int busLevel) : _level(busLevel), _count(0) {}
+    TBus(int busLevel) : _level(busLevel) {}
 
     int total_intfs() const { return _intfs.size(); }
     int total_buses() const { return _buses.size(); }
@@ -445,9 +439,6 @@ public:
         TQueryState qst;
         return _queryInterface(iid, retIntf, qst);
     }
-
-    // IRefObj
-    IMPL_REFOBJ(TBus);
 };
 
 } // namespace xp

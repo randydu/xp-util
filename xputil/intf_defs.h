@@ -282,8 +282,6 @@ struct [[nodiscard]] IEnumeratorEx : public IRefObj {
 template <class T>
 class auto_ref
 {
-    typedef auto_ref<T> this_type;
-
 private:
     T* _intf{nullptr};
 
@@ -292,12 +290,12 @@ private:
 public:
     auto_ref() = default;
 
-    auto_ref(const this_type& rv) : _intf(rv._intf)
+    auto_ref(auto_ref& rv) : _intf(rv._intf)
     {
         if (_intf)
             _intf->ref();
     }
-    auto_ref(this_type&& rv) : _intf(rv._intf)
+    auto_ref(auto_ref&& rv) : _intf(rv._intf)
     {
         rv._intf = nullptr;
     }
@@ -348,7 +346,7 @@ public:
         }
     }
 
-    void operator=(const auto_ref<T>& intf)
+    auto_ref& operator=(const auto_ref& intf)
     {
         if (_intf != intf.get()) {
             if (_intf)
@@ -357,13 +355,17 @@ public:
             if (_intf)
                 _intf->ref();
         }
+        return *this;
     }
-    void operator=(auto_ref<T>&& rref)
+    auto_ref& operator=(auto_ref&& rref)
     {
-        if (_intf)
-            _intf->unref();
-        _intf = rref._intf;
-        rref._intf = nullptr;
+        if (_intf != rref._intf) {
+            if (_intf)
+                _intf->unref();
+            _intf = rref._intf;
+            rref._intf = nullptr;
+        }
+        return *this;
     }
 
     inline T& operator*() const
