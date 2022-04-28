@@ -720,3 +720,68 @@ TEST_CASE("multi-intfx-3", tag)
         }
     }
 }
+
+TEST_CASE("autoref", tag)
+{
+    xp::auto_ref foo = new xp::TInterfaceEx<Foo>();
+    CHECK(foo->count() == 1);
+
+    SECTION("copy")
+    {
+        SECTION("copy constructor")
+        {
+            xp::auto_ref foo1 = foo;
+            CHECK(foo1->count() == 2);
+        }
+
+        SECTION("copy assignment")
+        {
+            xp::auto_ref<IFoo> foo1;
+            foo1 = foo;
+            CHECK(foo1->count() == 2);
+        }
+    }
+    SECTION("move")
+    {
+        SECTION("move constructor")
+        {
+            xp::auto_ref<IFoo> foo2 = std::move(foo);
+            CHECK(!foo);
+            CHECK(foo2->count() == 1);
+        }
+        SECTION("move assignment")
+        {
+            xp::auto_ref<IFoo> foo2;
+            foo2 = std::move(foo);
+            CHECK(!foo);
+            CHECK(foo2->count() == 1);
+        }
+    }
+    SECTION("release")
+    {
+        SECTION("when input reference is one")
+        {
+            auto p = foo.release();
+            CHECK(!foo);
+            CHECK(p);
+            CHECK(p->count() == 0); // here we have a "free" resource need to be managed.
+
+            xp::auto_ref man(p); // manage it
+        }
+        SECTION("when input reference is more than one")
+        {
+            IFoo* p = foo.get();
+            int i = p->count();
+            CHECK(i > 0);
+
+            {
+                xp::auto_ref foo1 = p;
+                CHECK(p->count() == i + 1); // now managed by both foo & foo1
+
+                CHECK(p == foo1.release()); // release foo1 management
+                CHECK(p->count() == i);     // should be balanced as before.
+            }
+            CHECK(p->count() == i); // ~foo1() has no effect
+        }
+    }
+}

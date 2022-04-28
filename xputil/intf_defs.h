@@ -384,6 +384,17 @@ public:
         return *_intf;
     }
 
+    // Return managed pointer and release my ownership
+    T* release()
+    {
+        T* p = _intf;
+        _intf = nullptr;
+        if (p) {
+            p->unrefNoDelete(); // remove my reference without destroying the resouce.
+        }
+        return p;
+    }
+
     inline operator T*(void) const
     {
         return _intf;

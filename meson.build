@@ -1,4 +1,4 @@
-project('xputil', 'cpp', default_options: ['cpp_std=c++17', 'werror=true'], version: '1.4.0')
+project('xputil', 'cpp', default_options: ['cpp_std=c++17', 'werror=true'], version: '1.4.1')
 
 # stop after 1 errors
 if meson.get_compiler('cpp').get_id() == 'gcc'
