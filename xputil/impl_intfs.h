@@ -35,6 +35,8 @@ template <class T>
 class TRefObj : public T
 {
 public:
+    TRefObj() = default;
+
     template <typename... Ts>
     TRefObj(Ts&&... args) : T(std::forward<Ts>(args)...)
     {
@@ -123,6 +125,8 @@ protected:
     virtual ~TInterface() = default;
 
 public:
+    TInterface() = default;
+
     template <typename... Ts>
     TInterface(Ts&&... args) : TRefObj<T>(std::forward<Ts>(args)...)
     {
@@ -368,7 +372,7 @@ public:
     auto first_service()
     {
         using first_type = first_type_t<S...>;
-        return static_cast< first_type*>(this);
+        return static_cast<first_type*>(this);
     }
 
     _INTERNAL_ virtual int _queryInterface(TIntfId iid, void** retIntf, QueryState& qst) override
@@ -378,7 +382,7 @@ public:
         }
 
         parent_t* p = static_cast<parent_t*>(this);
-        if (equalIID(iid, IID_IINTERFACEEX) || equalIID(iid, IID_IINTERFACEEX)) {
+        if (equalIID(iid, IID_IINTERFACEEX) || equalIID(iid, IID_IINTERFACE)) {
             this->ref();
             *retIntf = p;
             return 0;
@@ -392,6 +396,59 @@ public:
             }
         }
         return 1;
+    }
+};
+
+template <class T, class... S>
+class TInterfaceBase : virtual public TRefObj<T>, virtual public S...
+{
+public:
+    TInterfaceBase()
+    {
+        static_assert(std::is_base_of_v<IInterface, T>);
+        static_assert(!std::is_base_of_v<IInterfaceEx, T>);
+
+        if constexpr (sizeof...(S) > 0) {
+            static_assert((std::is_base_of_v<IInterface, S> && ...));
+            static_assert(!(std::is_base_of_v<IInterfaceEx, S> && ...));
+        }
+    }
+
+    // IInterface
+    virtual int queryInterface(TIntfId iid, void** retIntf) override
+    {
+        if (equalIID(iid, T::iid) || equalIID(iid, IID_IINTERFACE)) {
+            this->ref();
+            *retIntf = static_cast<T*>(this);
+            return 0;
+        }
+
+        if constexpr (sizeof...(S) > 0) {
+            if (match_iid<S...>(iid, retIntf)) {
+                return 0;
+            }
+        }
+
+        return 1;
+    }
+
+protected:
+    virtual ~TInterfaceBase() = default;
+
+private:
+    template <typename U, typename... V>
+    bool match_iid(TIntfId iid, void** retIntf)
+    {
+        if (equalIID(iid, IID(U))) {
+            this->ref();
+            *retIntf = static_cast<U*>(this);
+            return true;
+        }
+        if constexpr (sizeof...(V) > 0) {
+            return match_iid<V...>(iid, retIntf);
+        } else {
+            return false;
+        }
     }
 };
 
