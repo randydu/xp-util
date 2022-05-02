@@ -930,3 +930,148 @@ TEST_CASE("TInterfaceBase", tag)
         }
     }
 }
+
+TEST_CASE("TInterfaceExBase", tag)
+{
+    SECTION("single-intf")
+    {
+        class CName : public xp::TInterfaceExBase<IName>
+        {
+        public:
+            CName(std::string name) : name_(std::move(name)) {}
+            virtual std::string name() const { return name_; }
+
+        private:
+            std::string name_;
+        };
+        xp::auto_ref<CName> a = new CName("Marry");
+        CHECK(a->name() == "Marry");
+        CHECK(a->count() == 1);
+
+        xp::auto_ref bus = new xp::TBus(0);
+        bus->connect(a);
+        CHECK(bus->supports(IID(IName)));
+    }
+
+    SECTION("two-intfs")
+    {
+        class CNameAge : public xp::TInterfaceExBase<IName, IAge>
+        {
+        public:
+            CNameAge(std::string name, int age) : name_(std::move(name)), age_(age) {}
+            virtual std::string name() const { return name_; }
+            virtual int age() const { return age_; }
+
+        private:
+            std::string name_;
+            int age_{0};
+        };
+        xp::auto_ref<CNameAge> merry = new CNameAge("Marry", 28);
+        CHECK(merry->name() == "Marry");
+        CHECK(merry->age() == 28);
+        CHECK(merry->count() == 1);
+
+        SECTION("view IAge")
+        {
+            xp::auto_ref<IAge> age = merry;
+            CHECK(age->age() == 28);
+            CHECK(age->count() == 2); // share the same count with hosting object
+
+            // IAge => IName
+            xp::auto_ref<IName> nm = age;
+            CHECK(nm);
+            CHECK(nm->name() == "Marry");
+            CHECK(nm->count() == 3);
+        }
+        SECTION("view IName")
+        {
+            xp::auto_ref<IName> nm = merry;
+            CHECK(nm->name() == "Marry");
+            CHECK(nm->count() == 2); // share the same count with hosting object
+
+            // IName => IAge
+            xp::auto_ref<IAge> age = nm;
+            CHECK(age);
+            CHECK(age->age() == 28);
+            CHECK(age->count() == 3);
+        }
+
+        xp::auto_ref bus = new xp::TBus(0);
+        bus->connect(merry);
+        CHECK(bus->supports(IID(IName)));
+        CHECK(bus->supports(IID(IAge)));
+    }
+
+    SECTION("three-intfs")
+    {
+        class CPeople : public xp::TInterfaceExBase<IName, IAge, ISex>
+        {
+        public:
+            CPeople(std::string name, int age, bool male) : name_(std::move(name)), age_(age), male_(male) {}
+            virtual std::string name() const { return name_; }
+            virtual int age() const { return age_; }
+            virtual bool male() const { return male_; }
+
+        private:
+            std::string name_;
+            int age_{0};
+            bool male_{true};
+        };
+        xp::auto_ref<CPeople> merry = new CPeople("Marry", 28, false);
+        CHECK(merry->name() == "Marry");
+        CHECK(merry->age() == 28);
+        CHECK(!merry->male());
+        CHECK(merry->count() == 1);
+
+
+        SECTION("view IAge")
+        {
+            xp::auto_ref<IAge> age = merry;
+            CHECK(age->age() == 28);
+            CHECK(age->count() == 2); // share the same count with hosting object
+
+            // IAge => IName
+            xp::auto_ref<IName> nm = age;
+            CHECK(nm);
+            CHECK(nm->name() == "Marry");
+            CHECK(nm->count() == 3);
+        }
+        SECTION("view IName")
+        {
+            xp::auto_ref<IName> nm = merry;
+            CHECK(nm->name() == "Marry");
+            CHECK(nm->count() == 2); // share the same count with hosting object
+
+            // IName => IAge
+            xp::auto_ref<IAge> age = nm;
+            CHECK(age);
+            CHECK(age->age() == 28);
+            CHECK(age->count() == 3);
+        }
+        SECTION("view ISex")
+        {
+            xp::auto_ref<ISex> sex = merry;
+            CHECK(!sex->male());
+            CHECK(sex->count() == 2); // share the same count with hosting object
+
+            // IName => IAge
+            xp::auto_ref<IAge> age = sex;
+            CHECK(age);
+            CHECK(age->age() == 28);
+            CHECK(age->count() == 3);
+        }
+        xp::auto_ref bus = new xp::TBus(0);
+        bus->connect(merry);
+        CHECK(bus->supports(IID(IName)));
+        CHECK(bus->supports(IID(IAge)));
+        CHECK(bus->supports(IID(ISex)));
+
+        SECTION("bus=>IAge=>IName"){
+            xp::auto_ref<IName> nm = bus;
+            CHECK(nm->name() == "Marry");
+
+            xp::auto_ref<IAge> age = nm;
+            CHECK(age->age() == 28);
+        }
+    }
+}
