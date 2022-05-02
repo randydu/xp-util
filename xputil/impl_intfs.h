@@ -24,6 +24,25 @@
 
 namespace xp {
 
+namespace detail {
+
+struct QueryState : IQueryState {
+private:
+    std::unordered_set<void*> _searched;
+
+public:
+    virtual void addSearched(void* p) override
+    {
+        _searched.insert(p);
+    }
+    virtual bool isSearched(void* p) const override
+    {
+        return _searched.count(p);
+    }
+};
+} // namespace detail
+
+
 enum class ref_api_t {
     REF,
     UNREF,
@@ -244,39 +263,20 @@ T* make_intf(TArgs&&... args)
 template <class T, bool check_iid = true>
 class TInterfaceEx : public TRefObj<T>
 {
-private:
-    // Release internal resources
-    void clear()
-    {
-        if (!_cleared) {
-            _cleared = true;
-            onClear();
-        }
-    }
-
-protected:
-    IBus* _bus{nullptr};
-    bool _cleared{false}; // any apis should not be called any more
-    int _finish_pass{1};
-
-    virtual ~TInterfaceEx()
-    {
-        // might not has been connected with any bus
-        // assert((_bus == NULL)&& "TInterfaceEx::~TInterfaceEx >> should has been unplugged from hub!");
-        clear();
-    }
-
-    // sub-class should override this method to release internal resources
-    virtual void onClear() {}
-
 public:
     template <typename... Ts>
     TInterfaceEx(Ts&&... args) : TRefObj<T>(std::forward<Ts>(args)...)
     {
     }
 
+    // IInterface
+    virtual int queryInterface(TIntfId iid, void** retIntf) override
+    {
+        detail::QueryState qst;
+        return queryInterfaceEx(iid, retIntf, qst);
+    }
     // IInterfaceEx
-    _INTERNAL_ virtual int _queryInterface(TIntfId iid, void** retIntf, QueryState& qst) override
+    virtual int queryInterfaceEx(TIntfId iid, void** retIntf, IQueryState& qst) override
     {
         if constexpr (check_iid) { // multi-interfaceex check by iteself; also fix ambiguous T::iid compiling issue when T inherits multiple interfaces.
             if (equalIID(iid, T::iid) || equalIID(iid, IID_IINTERFACEEX) || equalIID(iid, IID_IINTERFACE)) {
@@ -290,12 +290,12 @@ public:
 
         if (_bus) {
             if (!qst.isSearched(_bus)) {
-                return _bus->_queryInterface(iid, retIntf, qst);
+                return _bus->queryInterfaceEx(iid, retIntf, qst);
             }
         }
         return 1;
     }
-    _INTERNAL_ virtual void _setBus(IBus* bus) override
+    virtual void setBus(IBus* bus) override
     {
         if (_bus != nullptr && bus != nullptr)
             throw std::logic_error("TInterfaceEx::_setBus() >> hosting bus already exists!");
@@ -304,7 +304,10 @@ public:
 
     virtual void finish() override
     {
-        clear();
+        if (!_cleared) {
+            _cleared = true;
+            onClear();
+        }
     }
 
     // query if the apis should be disabled.
@@ -317,12 +320,14 @@ public:
         return _finish_pass;
     }
 
-    // IInterface
-    virtual int queryInterface(TIntfId iid, void** retIntf) override
-    {
-        QueryState qst;
-        return _queryInterface(iid, retIntf, qst);
-    }
+protected:
+    IBus* _bus{nullptr};
+    bool _cleared{false}; // any apis should not be called any more
+    int _finish_pass{1};
+
+    virtual ~TInterfaceEx() = default;
+
+    virtual void onClear(){} //called when the finish() is invokded. subclass may override this to release managed resources before destructor.
 };
 
 template <typename T, typename... TArgs>
@@ -340,7 +345,7 @@ T* make_intfx(TArgs&&... args)
 template <class T, class... S>
 class TMultiInterfaceEx : public TInterfaceEx<T, false>
 {
-    using parent_t = TInterfaceEx<T, false>;
+    typedef TInterfaceEx<T, false> parent_t;
 
     template <typename U, typename... V>
     bool match_iid(TIntfId iid, void** retIntf)
@@ -375,7 +380,9 @@ public:
         return static_cast<first_type*>(this);
     }
 
-    _INTERNAL_ virtual int _queryInterface(TIntfId iid, void** retIntf, QueryState& qst) override
+    using parent_t::queryInterface;
+
+    virtual int queryInterfaceEx(TIntfId iid, void** retIntf, IQueryState& qst) override
     {
         if (match_iid<S...>(iid, retIntf)) {
             return 0;
@@ -392,13 +399,62 @@ public:
 
         if (parent_t::_bus) {
             if (!qst.isSearched(parent_t::_bus)) {
-                return parent_t::_bus->_queryInterface(iid, retIntf, qst);
+                return parent_t::_bus->queryInterfaceEx(iid, retIntf, qst);
             }
         }
         return 1;
     }
 };
 
+/**
+ * @brief Base class for object implementing multiple interfaces
+ *
+ * @tparam T  first interface
+ * @tparam S  [optional] other interfaces
+ *
+ *  All of the interfaces implemented by this class are clustered in a single
+ *  group, you can navigate from one interface to another:
+ *
+ *   auto_ref<IA> pa; // we have a IA interface
+ *   assert(pa);
+ *   auto_ref<IB> pb = pa; //IB can be navigated from IA.
+ *   assert(pb);
+ *
+ *
+ * @code {.cpp}
+ *   Interface declarations:
+ *
+ *   struct IFoo: IInterface {
+ *        DECLARE_IID("foo-service");
+ *        virtual void foo() = 0;
+ *   struct IBar: IInterface {
+ *        DECLARE_IID("bar-service");
+ *        virtual void bar() = 0;
+ *   };
+ *
+ *   Implementation:
+ *
+ *   class Foo : public TInterfaceBase<IFoo> {
+ *       public:
+ *           virtual void foo() override {}
+ *   };
+ *
+ *   xp::auto_ref<IFoo> foo = new Foo();
+ *
+ *   class FooBar : public TInterfaceBase<IFoo, IBar> {
+ *       public:
+ *           virtual void foo() override {}
+ *           virtual void bar() override {}
+ *   };
+ *
+ *   xp::auto_ref<IFoo> foo = new FooBar();
+ *   ...
+ *   xp::auto_ref<IBar> bar = foo; //navigate from IFoo to IBar.
+ *   CHECK(bar);
+ *
+ * @endcode
+ *
+ */
 template <class T, class... S>
 class TInterfaceBase : virtual public TRefObj<T>, virtual public S...
 {
@@ -452,27 +508,106 @@ private:
     }
 };
 
-// IBus
-class TBus : public TRefObj<IBus>
-{
-private:
-    enum {
-        ACTIVE,
-        CLEARING,
-        CLEARED
-    } _status{ACTIVE};
 
-    void clear();
-    void assert_api_not_closed() const;
+// Multi-Interface with a built-in bus connector
+
+template <class... S>
+class TInterfaceExBase : virtual public TRefObj<IInterfaceEx>, virtual protected S...
+{
+public:
+    TInterfaceExBase()
+    {
+        static_assert((std::is_base_of_v<IInterface, S> && ...));
+        static_assert(!(std::is_base_of_v<IInterfaceEx, S> && ...));
+    }
+
+
+    // IInterfaceEx
+    virtual int queryInterfaceEx(TIntfId iid, void** retIntf, IQueryState& qst) override
+    {
+        if (equalIID(iid, IID_IINTERFACEEX) || equalIID(iid, IID_IINTERFACE)) {
+            this->ref();
+            *retIntf = (IInterfaceEx*)(this);
+            return 0;
+        }
+
+        if (match_iid<S...>(iid, retIntf)) {
+            return 0;
+        }
+
+        qst.addSearched(this);
+
+        if (_bus) {
+            if (!qst.isSearched(_bus)) {
+                return _bus->queryInterfaceEx(iid, retIntf, qst);
+            }
+        }
+        return 1;
+    }
+
+    virtual void setBus(IBus* bus) override
+    {
+        if (_bus != nullptr && bus != nullptr)
+            throw std::logic_error("TInterfaceEx::_setBus() >> hosting bus already exists!");
+        _bus = bus;
+    }
+
+    virtual void finish() override
+    {
+        if (!_cleared) {
+            _cleared = true;
+            this->onClear();
+        }
+    }
+
+    // query if the apis should be disabled.
+    virtual bool finished() const override
+    {
+        return _cleared;
+    }
+    virtual int getFinishPass() const override
+    {
+        return _finish_pass;
+    }
+
+    // IInterface
+    virtual int queryInterface(TIntfId iid, void** retIntf) override
+    {
+        detail::QueryState qst;
+        return queryInterfaceEx(iid, retIntf, qst);
+    }
 
 protected:
-    int _level; // busLevel
-    // IBus* _bus; //hosting bus with a more secure level ( _bus->level() <= this->level() )
-    std::vector<IInterfaceEx*> _intfs;
-    std::vector<IBus*> _buses;    // connected buses with less secure levels ( >= this->level() ), strong-referenced.
-    std::vector<IBus*> _siblings; // bus with the same level as mine. (weak-referenced)
+    IBus* _bus{nullptr};
+    bool _cleared{false}; // any apis should not be called any more
+    int _finish_pass{1};
 
-    virtual ~TBus() { clear(); }
+    virtual ~TInterfaceExBase() = default;
+
+    virtual void onClear() {} //called when finish() is invokded.
+
+private:
+    template <typename U, typename... V>
+    bool match_iid(TIntfId iid, void** retIntf)
+    {
+        if (equalIID(iid, IID(U))) {
+            this->ref();
+            *retIntf = static_cast<U*>(this);
+            return true;
+        }
+        if constexpr (sizeof...(V) > 0) {
+            return match_iid<V...>(iid, retIntf);
+        } else {
+            return false;
+        }
+    }
+};
+
+
+// IBus
+class TBus : public TInterfaceEx<IBus, false>
+{
+    using parent_t = TInterfaceEx<IBus, false>;
 
 public:
     TBus(int busLevel) : _level(busLevel) {}
@@ -480,6 +615,7 @@ public:
     int total_intfs() const { return _intfs.size(); }
     int total_buses() const { return _buses.size(); }
     int total_siblings() const { return _siblings.size(); }
+
 
     // IBus
     [[nodiscard]] virtual bool connect(IInterfaceEx* intf) override;
@@ -494,28 +630,34 @@ public:
     virtual void addSiblingBus(IBus* bus) override;
     virtual void removeSiblingBus(IBus* bus) override;
 
-    // IInterfaceEx
-    virtual int _queryInterface(TIntfId iid, void** retIntf, QueryState& qst) override;
-    virtual void _setBus(IBus* bus) override
-    { /* unused */
+    virtual int queryInterfaceEx(TIntfId iid, void** retIntf, IQueryState& qst) override;
+
+    using parent_t::queryInterface;
+    ;
+
+protected:
+    int _level; // busLevel
+    // IBus* _bus; //hosting bus with a more secure level ( _bus->level() <= this->level() )
+    std::vector<IInterfaceEx*> _intfs;
+    std::vector<IBus*> _buses;    // connected buses with less secure levels ( >= this->level() ), strong-referenced.
+    std::vector<IBus*> _siblings; // bus with the same level as mine. (weak-referenced)
+
+    virtual ~TBus(){
+        reset();
+    }
+    virtual void onClear() {
+        reset();
     }
 
-    virtual int getFinishPass() const override { return 0; }
-    virtual void finish() override
-    {
-        clear();
-    }
-    virtual bool finished() const override
-    {
-        return _status == CLEARED;
-    }
+    void reset();
+private:
+    enum {
+        ACTIVE,
+        CLEARING,
+        CLEARED
+    } _status{ACTIVE};
 
-    // IInterface
-    virtual int queryInterface(TIntfId iid, void** retIntf) override
-    {
-        QueryState qst;
-        return _queryInterface(iid, retIntf, qst);
-    }
+    void assert_api_not_closed() const;
 };
 
 } // namespace xp

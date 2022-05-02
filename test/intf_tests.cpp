@@ -31,6 +31,8 @@ struct IDummy : public xp::IInterface {
     static int count;
 };
 int IDummy::count = 0;
+
+
 struct IBaz : public xp::IInterfaceEx {
     DECLARE_IID("aec95632-777d-4bda-9e14-d93f2a77677e");
     std::string id() const { return "baz"; }
@@ -146,8 +148,7 @@ TEST_CASE("interface", tag)
         auto_ref obj = new TInterface<IDummy>();
 
         CHECK(IID(IDummy) == std::string("dummy.2020"));
-        CHECK(obj->cast<IInterface>() == obj.get());
-        CHECK(obj->cast<IDummy>() == obj.get());
+        CHECK(intf_cast<IInterface>(obj.get()) == obj.get());
 
         CHECK(obj->supports(IID(IDummy)));
         CHECK(obj->supports(IID(IInterface)));
@@ -589,11 +590,14 @@ TEST_CASE("ref-issue", tag)
 {
     using namespace xp;
 
+    CHECK(Foo::count == 0); // only one shared instance
+
     SECTION("bus nav")
     {
         auto_ref<IBus> bus = new TBus(0);
         bus->connect(new TInterfaceEx<Foo>());
-
+        CHECK(Foo::count == 1);
+        CHECK(bus->count() == 1);
         {
             IFoo* ifoo = bus->cast<IFoo>();
             CHECK(static_cast<IRefObj*>(ifoo)->count() == 1); // internal refed by bus.
@@ -611,9 +615,12 @@ TEST_CASE("ref-issue", tag)
             CHECK(static_cast<IRefObj*>(foo.get())->count() == 2); // should be refered by bus and foo.
         }
     }
+
+    CHECK(Foo::count == 0); // only one shared instance
     SECTION("assignment auto_ref => auto_ref")
     {
         {
+            CHECK(Foo::count == 0); // only one shared instance
             auto_ref<IFoo> foo;
             auto_ref<IFoo> bar(new xp::TInterfaceEx<Foo>());
             foo = bar;
@@ -841,9 +848,9 @@ TEST_CASE("TInterfaceBase", tag)
         {
             xp::auto_ref<IAge> age = merry;
             CHECK(age->age() == 28);
-            CHECK(age->count() == 2); //share the same count with hosting object
+            CHECK(age->count() == 2); // share the same count with hosting object
 
-            //IAge => IName
+            // IAge => IName
             xp::auto_ref<IName> nm = age;
             CHECK(nm);
             CHECK(nm->name() == "Marry");
@@ -853,9 +860,9 @@ TEST_CASE("TInterfaceBase", tag)
         {
             xp::auto_ref<IName> nm = merry;
             CHECK(nm->name() == "Marry");
-            CHECK(nm->count() == 2); //share the same count with hosting object
+            CHECK(nm->count() == 2); // share the same count with hosting object
 
-            //IName => IAge
+            // IName => IAge
             xp::auto_ref<IAge> age = nm;
             CHECK(age);
             CHECK(age->age() == 28);
@@ -889,9 +896,9 @@ TEST_CASE("TInterfaceBase", tag)
         {
             xp::auto_ref<IAge> age = merry;
             CHECK(age->age() == 28);
-            CHECK(age->count() == 2); //share the same count with hosting object
+            CHECK(age->count() == 2); // share the same count with hosting object
 
-            //IAge => IName
+            // IAge => IName
             xp::auto_ref<IName> nm = age;
             CHECK(nm);
             CHECK(nm->name() == "Marry");
@@ -901,9 +908,9 @@ TEST_CASE("TInterfaceBase", tag)
         {
             xp::auto_ref<IName> nm = merry;
             CHECK(nm->name() == "Marry");
-            CHECK(nm->count() == 2); //share the same count with hosting object
+            CHECK(nm->count() == 2); // share the same count with hosting object
 
-            //IName => IAge
+            // IName => IAge
             xp::auto_ref<IAge> age = nm;
             CHECK(age);
             CHECK(age->age() == 28);
@@ -913,9 +920,9 @@ TEST_CASE("TInterfaceBase", tag)
         {
             xp::auto_ref<ISex> sex = merry;
             CHECK(!sex->male());
-            CHECK(sex->count() == 2); //share the same count with hosting object
+            CHECK(sex->count() == 2); // share the same count with hosting object
 
-            //IName => IAge
+            // IName => IAge
             xp::auto_ref<IAge> age = sex;
             CHECK(age);
             CHECK(age->age() == 28);

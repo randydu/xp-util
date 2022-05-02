@@ -31,7 +31,7 @@ void TBus::assert_api_not_closed() const
         throw api_already_disabled;
 }
 
-void TBus::clear()
+void TBus::reset()
 {
     if (_status != ACTIVE)
         return;
@@ -56,7 +56,7 @@ void TBus::clear()
         }
     }
     for (auto intf : _intfs) {
-        intf->_setBus(nullptr);
+        intf->setBus(nullptr);
         intf->unref();
     }
     _intfs.clear();
@@ -64,7 +64,7 @@ void TBus::clear()
     for (std::vector<IBus*>::reverse_iterator it = _buses.rbegin(); it != _buses.rend(); ++it) {
         IBus* bus = *it;
         bus->finish();
-        bus->_setBus(nullptr);
+        bus->setBus(nullptr);
         bus->unref();
     }
     _buses.clear();
@@ -79,9 +79,10 @@ bool TBus::connect(IInterfaceEx* intf)
     if (intf == nullptr || intf == this)
         return false; // no loop-back.
 
+
     IBus* bus;
-    QueryState qst;
-    if (0 == intf->_queryInterface(IID_IBUS, (void**)&bus, qst)) {
+    detail::QueryState qst;
+    if (0 == intf->queryInterfaceEx(IID_IBUS, (void**)&bus, qst)) {
         ON_EXIT(bus->unref();); // balance queryInterface
 
         const int level = bus->level();
@@ -138,7 +139,7 @@ bool TBus::connect(IInterfaceEx* intf)
 
     intf->ref();
     _intfs.push_back(intf);
-    intf->_setBus(this);
+    intf->setBus(this);
     return true;
 }
 
@@ -149,7 +150,7 @@ void TBus::disconnect(IInterfaceEx* intf)
     // interfaces first
     if (auto it = find(_intfs.begin(), _intfs.end(), intf); it != _intfs.end()) {
         _intfs.erase(it);
-        intf->_setBus(nullptr);
+        intf->setBus(nullptr);
         intf->unref();
         return;
     }
@@ -206,10 +207,10 @@ void TBus::removeSiblingBus(IBus* bus)
     }
 }
 
-int TBus::_queryInterface(TIntfId iid, void** retIntf, QueryState& qst)
+int TBus::queryInterfaceEx(TIntfId iid, void** retIntf, IQueryState& qst)
 {
     if (equalIID(iid, IID_IBUS) || equalIID(iid, IID_IINTERFACEEX) || equalIID(iid, IID_IINTERFACE)) {
-        *retIntf = (IInterface*)(this);
+        *retIntf = (IInterfaceEx*)(this);
         this->ref();
         return 0;
     }
@@ -220,19 +221,19 @@ int TBus::_queryInterface(TIntfId iid, void** retIntf, QueryState& qst)
 
     // scanning interfaces in my slots
     for (auto intf : _intfs) {
-        if (!qst.isSearched(intf) && intf->_queryInterface(iid, retIntf, qst) == 0) {
+        if (!qst.isSearched(intf) && intf->queryInterfaceEx(iid, retIntf, qst) == 0) {
             return 0;
         }
     }
     // scan sibling buses
     for (auto bus : _siblings) {
-        if (!qst.isSearched(bus) && bus->_queryInterface(iid, retIntf, qst) == 0) {
+        if (!qst.isSearched(bus) && bus->queryInterfaceEx(iid, retIntf, qst) == 0) {
             return 0;
         }
     }
     // scanning connected upper-level/less-secure buses
     for (auto bus : _buses) {
-        if (!qst.isSearched(bus) && bus->_queryInterface(iid, retIntf, qst) == 0) {
+        if (!qst.isSearched(bus) && bus->queryInterfaceEx(iid, retIntf, qst) == 0) {
             return 0;
         }
     }

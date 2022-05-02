@@ -2,7 +2,7 @@
 #include <type_traits>
 #include <xputil/class_util.h>
 
-const auto tag = "cls";
+const auto tag = "[cls]";
 
 class A
 {

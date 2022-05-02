@@ -116,7 +116,7 @@ struct IInterface : virtual public IRefObj {
     }
 
     template <typename T>
-    T* cast()
+    constexpr T* cast()
     {
         T* intf;
         if (this->queryInterface(T::iid, (void**)&intf)) {
@@ -127,28 +127,31 @@ struct IInterface : virtual public IRefObj {
     }
 };
 
+template <typename T, typename F>
+constexpr T* intf_cast(F* from)
+{
+    T* intf;
+    if (from->queryInterface(T::iid, (void**)&intf)) {
+        return nullptr;
+    }
+    intf->unrefNoDelete(); // Balance counter (incremented within queryInterface)
+    return intf;
+}
+
+
 #define IID_IINTERFACE IID(IInterface)
 
-#define _INTERNAL_
 
-struct IInterfaceEx;
 
-_INTERNAL_ struct QueryState {
-private:
-    std::unordered_set<void*> _searched;
+struct IQueryState {
+    virtual void addSearched(void*) = 0;
+    virtual bool isSearched(void*) const = 0;
 
-public:
-    void addSearched(void* p)
-    {
-        _searched.insert(p);
-    }
-    bool isSearched(void* p) const
-    {
-        return _searched.count(p);
-    }
+    virtual ~IQueryState() = default;
 };
 
 struct IBus;
+
 /**
  * \interface IInterfaceEx
  * \brief root of all bus-aware extensible interfaces
@@ -158,11 +161,11 @@ struct IInterfaceEx : public IInterface {
     /**
      *	Interface browsing, returns 0 if successful, non-zero error code if fails.
      */
-    _INTERNAL_ virtual int _queryInterface(TIntfId iid, void** retIntf, QueryState& qst) = 0;
+    virtual int queryInterfaceEx(TIntfId iid, void** retIntf, IQueryState& qst) = 0;
     /**
      * set the hosting bus
      */
-    _INTERNAL_ virtual void _setBus(IBus* bus) = 0;
+    virtual void setBus(IBus* bus) = 0;
 
     /**
      * [EXPLICIT-RELEASE]
