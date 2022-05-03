@@ -56,10 +56,8 @@ class TRefObj : public T
 public:
     TRefObj() = default;
 
-    template <typename... Ts>
-    TRefObj(Ts&&... args) : T(std::forward<Ts>(args)...)
-    {
-    }
+    using T::T; // gsl::C.52
+
     TRefObj(const TRefObj&) = delete;
     TRefObj& operator=(const TRefObj&) = delete;
     TRefObj(TRefObj&& other) = delete;
@@ -140,21 +138,17 @@ IRefObj* make_ref(TArgs&&... args)
 template <class T>
 class TInterface : public TRefObj<T>
 {
-protected:
-    virtual ~TInterface() = default;
+    using parent_t = TRefObj<T>;
 
 public:
     TInterface() = default;
 
-    template <typename... Ts>
-    TInterface(Ts&&... args) : TRefObj<T>(std::forward<Ts>(args)...)
-    {
-    }
+    using parent_t::parent_t; // gsl C.52
 
     // IInterface
     virtual int queryInterface(TIntfId iid, void** retIntf) override
     {
-        if (equalIID(iid, T::iid) || equalIID(iid, IID_IINTERFACE)) {
+        if (equalIID(iid, IID(T)) || equalIID(iid, IID_IINTERFACE)) {
             this->ref();
             *retIntf = (IInterface*)(this);
             return 0;
@@ -162,16 +156,18 @@ public:
 
         return 1;
     }
+
+protected:
+    virtual ~TInterface() = default; // no stack object
 };
 
 template <class T, class... S>
 class TMultiInterface : public TRefObj<T>
 {
+    using parent_t = TRefObj<T>;
+
 public:
-    template <typename... Ts>
-    TMultiInterface(Ts&&... args) : TRefObj<T>(std::forward<Ts>(args)...)
-    {
-    }
+    using parent_t::parent_t; // gsl C.52
 
     // IInterface
     virtual int queryInterface(TIntfId iid, void** retIntf) override
@@ -263,11 +259,10 @@ T* make_intf(TArgs&&... args)
 template <class T, bool check_iid = true>
 class TInterfaceEx : public TRefObj<T>
 {
+    using parent_t = TRefObj<T>;
+
 public:
-    template <typename... Ts>
-    TInterfaceEx(Ts&&... args) : TRefObj<T>(std::forward<Ts>(args)...)
-    {
-    }
+    using parent_t::parent_t; // gsl C.52
 
     // IInterface
     virtual int queryInterface(TIntfId iid, void** retIntf) override
@@ -279,7 +274,7 @@ public:
     virtual int queryInterfaceEx(TIntfId iid, void** retIntf, IQueryState& qst) override
     {
         if constexpr (check_iid) { // multi-interfaceex check by iteself; also fix ambiguous T::iid compiling issue when T inherits multiple interfaces.
-            if (equalIID(iid, T::iid) || equalIID(iid, IID_IINTERFACEEX) || equalIID(iid, IID_IINTERFACE)) {
+            if (equalIID(iid, IID(T)) || equalIID(iid, IID_IINTERFACEEX) || equalIID(iid, IID_IINTERFACE)) {
                 this->ref();
                 *retIntf = (IInterface*)(this);
                 return 0;
@@ -327,7 +322,7 @@ protected:
 
     virtual ~TInterfaceEx() = default;
 
-    virtual void onClear(){} //called when the finish() is invokded. subclass may override this to release managed resources before destructor.
+    virtual void onClear() {} // called when the finish() is invokded. subclass may override this to release managed resources before destructor.
 };
 
 template <typename T, typename... TArgs>
@@ -345,31 +340,10 @@ T* make_intfx(TArgs&&... args)
 template <class T, class... S>
 class TMultiInterfaceEx : public TInterfaceEx<T, false>
 {
-    typedef TInterfaceEx<T, false> parent_t;
-
-    template <typename U, typename... V>
-    bool match_iid(TIntfId iid, void** retIntf)
-    {
-        if (equalIID(iid, IID(U))) {
-            this->ref();
-            *retIntf = static_cast<U*>(this);
-            return true;
-        }
-        if constexpr (sizeof...(V) > 0) {
-            return match_iid<V...>(iid, retIntf);
-        } else {
-            return false;
-        }
-    }
-
-protected:
-    virtual ~TMultiInterfaceEx() = default;
+    using parent_t = TInterfaceEx<T, false>;
 
 public:
-    template <typename... Ts>
-    TMultiInterfaceEx(Ts&&... args) : parent_t(std::forward<Ts>(args)...)
-    {
-    }
+    using parent_t::parent_t; // gsl C.52
 
     // First interface-ex provided
     // When connecting to bus, to avoid IInterfaceEx ambiguous due to multiple IInterfaceEx inheritance.
@@ -403,6 +377,25 @@ public:
             }
         }
         return 1;
+    }
+
+protected:
+    virtual ~TMultiInterfaceEx() = default;
+
+private:
+    template <typename U, typename... V>
+    bool match_iid(TIntfId iid, void** retIntf)
+    {
+        if (equalIID(iid, IID(U))) {
+            this->ref();
+            *retIntf = static_cast<U*>(this);
+            return true;
+        }
+        if constexpr (sizeof...(V) > 0) {
+            return match_iid<V...>(iid, retIntf);
+        } else {
+            return false;
+        }
     }
 };
 
@@ -458,9 +451,9 @@ public:
 template <class T, class... S>
 class TInterfaceBase : virtual public TRefObj<T>, virtual public S...
 {
-public:
-    TInterfaceBase()
+    constexpr void concept()
     {
+        // T, S... are interfaces derived from IInterface only.
         static_assert(std::is_base_of_v<IInterface, T>);
         static_assert(!std::is_base_of_v<IInterfaceEx, T>);
 
@@ -470,10 +463,13 @@ public:
         }
     }
 
+public:
+    TInterfaceBase() = default;
+
     // IInterface
     virtual int queryInterface(TIntfId iid, void** retIntf) override
     {
-        if (equalIID(iid, T::iid) || equalIID(iid, IID_IINTERFACE)) {
+        if (equalIID(iid, IID(T)) || equalIID(iid, IID_IINTERFACE)) {
             this->ref();
             *retIntf = static_cast<T*>(this);
             return 0;
@@ -509,18 +505,48 @@ private:
 };
 
 
-// Multi-Interface with a built-in bus connector
+/** Multi-Interface with a built-in bus connector (IInterfaceEx)
+    Allow publish multiple interfaces connected to bus in a single class object.
 
+    @code {.cpp}
+   Interface declarations:
+
+   struct IFoo: IInterface {
+        DECLARE_IID("foo-service");
+        virtual void foo() = 0;
+   struct IBar: IInterface {
+        DECLARE_IID("bar-service");
+        virtual void bar() = 0;
+   };
+
+   Implementation:
+
+   class FooBar : public TInterfaceExBase<IFoo, IBar> {
+       public:
+           virtual void foo() override {}
+           virtual void bar() override {}
+   };
+
+   auto_ref bus = new TBus();
+   bus->connect(new FooBar()); //publish IFoo & IBar
+   auto_ref<IFoo> foo = bus;   //query the service from bus
+   CHECK(foo);
+   xp::auto_ref<IBar> bar = foo; //navigate from IFoo to IBar.
+   CHECK(bar);
+
+    @endcode
+
+
+ */
 template <class... S>
 class TInterfaceExBase : virtual public TRefObj<IInterfaceEx>, virtual protected S...
 {
-public:
-    TInterfaceExBase()
-    {
-        static_assert((std::is_base_of_v<IInterface, S> && ...));
-        static_assert(!(std::is_base_of_v<IInterfaceEx, S> && ...));
-    }
+    // S are interfaces derived from IInterface only.
+    static_assert((std::is_base_of_v<IInterface, S> && ...));
+    static_assert(!(std::is_base_of_v<IInterfaceEx, S> && ...));
 
+public:
+    TInterfaceExBase() = default;
 
     // IInterfaceEx
     virtual int queryInterfaceEx(TIntfId iid, void** retIntf, IQueryState& qst) override
@@ -578,13 +604,13 @@ public:
     }
 
 protected:
-    IBus* _bus{nullptr};
+    IBus* _bus{nullptr};  // non-referenced
     bool _cleared{false}; // any apis should not be called any more
     int _finish_pass{1};
 
     virtual ~TInterfaceExBase() = default;
 
-    virtual void onClear() {} //called when finish() is invokded.
+    virtual void onClear() {} // called when finish() is invokded.
 
 private:
     template <typename U, typename... V>
@@ -610,7 +636,7 @@ class TBus : public TInterfaceEx<IBus, false>
     using parent_t = TInterfaceEx<IBus, false>;
 
 public:
-    TBus(int busLevel) : _level(busLevel) {}
+    explicit TBus(int busLevel = 0) : _level(busLevel) {}
 
     int total_intfs() const { return _intfs.size(); }
     int total_buses() const { return _buses.size(); }
@@ -642,14 +668,17 @@ protected:
     std::vector<IBus*> _buses;    // connected buses with less secure levels ( >= this->level() ), strong-referenced.
     std::vector<IBus*> _siblings; // bus with the same level as mine. (weak-referenced)
 
-    virtual ~TBus(){
+    virtual ~TBus()
+    {
         reset();
     }
-    virtual void onClear() {
+    virtual void onClear()
+    {
         reset();
     }
 
     void reset();
+
 private:
     enum {
         ACTIVE,

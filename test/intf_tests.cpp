@@ -103,6 +103,8 @@ struct Foobarwoo : virtual IFoo, virtual IBar, virtual IWoo {
     static int count;
 };
 int Foobarwoo::count{0};
+
+
 } // namespace
 
 TEST_CASE("refobj", tag)
@@ -133,6 +135,26 @@ TEST_CASE("refobj", tag)
         CHECK(p->count() == 1);
     }
 
+    SECTION("TRefobj init with parameters")
+    {
+        class People : public xp::IRefObj
+        {
+        public:
+            People(std::string name, int age) : name_(std::move(name)), age_(age) {}
+
+            const std::string& name() const { return name_; }
+            int age() const { return age_; }
+
+        private:
+            std::string name_;
+            int age_;
+        };
+
+        xp::auto_ref pl = new xp::TRefObj<People>("Randy", 35);
+        CHECK(pl->name() == "Randy");
+        CHECK(pl->age() == 35);
+    }
+
     CHECK(Dummy::count == 0);
 }
 
@@ -157,6 +179,33 @@ TEST_CASE("interface", tag)
 
         auto_ref dummy = obj->cast<IDummy>();
         CHECK(dummy->value() == 1);
+    }
+    SECTION("TInterface init with parameters")
+    {
+        INTERFACE IPeople : public xp::IInterface
+        {
+            DECLARE_IID("intf.people");
+
+            virtual const std::string& name() const = 0;
+            virtual int age() const = 0;
+        };
+
+        class People : public IPeople
+        {
+        public:
+            People(std::string name, int age) : name_(std::move(name)), age_(age) {}
+
+            virtual const std::string& name() const override { return name_; }
+            virtual int age() const override { return age_; }
+
+        private:
+            std::string name_;
+            int age_;
+        };
+
+        xp::auto_ref pl = new xp::TInterface<People>("Randy", 35);
+        CHECK(pl->name() == "Randy");
+        CHECK(pl->age() == 35);
     }
 
     CHECK(IDummy::count == 0);
@@ -1066,7 +1115,8 @@ TEST_CASE("TInterfaceExBase", tag)
         CHECK(bus->supports(IID(IAge)));
         CHECK(bus->supports(IID(ISex)));
 
-        SECTION("bus=>IAge=>IName"){
+        SECTION("bus=>IAge=>IName")
+        {
             xp::auto_ref<IName> nm = bus;
             CHECK(nm->name() == "Marry");
 

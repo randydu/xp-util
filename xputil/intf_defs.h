@@ -45,13 +45,14 @@ typedef const char* TIntfId;
  * \sa TInterfaceEx
  */
 //#define DECLARE_IID(x) static inline xp::TIntfId iid() {return x;}
-#define DECLARE_IID(x) constexpr static auto iid = x
+//#define DECLARE_IID(x) constexpr static auto iid = x
+#define DECLARE_IID(x) constexpr static auto iid(){ return x; }
 
 /**
  * \def IID
  * \brief extracts interface id from an interface name.
  */
-#define IID(intf) intf::iid
+#define IID(intf) intf::iid()
 
 /**
  * \fn bool equalIID(const TIntfId id1, const TIntfId id2);
@@ -119,7 +120,7 @@ struct IInterface : virtual public IRefObj {
     constexpr T* cast()
     {
         T* intf;
-        if (this->queryInterface(T::iid, (void**)&intf)) {
+        if (this->queryInterface(IID(T), (void**)&intf)) {
             return nullptr;
         }
         intf->unrefNoDelete(); // Balance counter (incremented within queryInterface)
@@ -131,7 +132,7 @@ template <typename T, typename F>
 constexpr T* intf_cast(F* from)
 {
     T* intf;
-    if (from->queryInterface(T::iid, (void**)&intf)) {
+    if (from->queryInterface(IID(T), (void**)&intf)) {
         return nullptr;
     }
     intf->unrefNoDelete(); // Balance counter (incremented within queryInterface)
@@ -321,7 +322,7 @@ public:
             if (_intf)
                 _intf->ref();
         } else {
-            from->queryInterface(T::iid, (void**)&_intf);
+            from->queryInterface(IID(T), (void**)&_intf);
         }
     }
 
@@ -354,7 +355,7 @@ public:
                         _intf->ref();
                 }
             } else {
-                intf->queryInterface(T::iid, (void**)&_intf);
+                intf->queryInterface(IID(T), (void**)&_intf);
             }
         }
     }
