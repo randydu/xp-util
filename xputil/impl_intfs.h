@@ -633,15 +633,12 @@ private:
 // IBus
 class TBus : public TInterfaceEx<IBus, false>
 {
-    using parent_t = TInterfaceEx<IBus, false>;
-
 public:
     explicit TBus(int busLevel = 0) : _level(busLevel) {}
 
     int total_intfs() const { return _intfs.size(); }
     int total_buses() const { return _buses.size(); }
     int total_siblings() const { return _siblings.size(); }
-
 
     // IBus
     [[nodiscard]] virtual bool connect(IInterfaceEx* intf) override;
@@ -657,9 +654,6 @@ public:
     virtual void removeSiblingBus(IBus* bus) override;
 
     virtual int queryInterfaceEx(TIntfId iid, void** retIntf, IQueryState& qst) override;
-
-    using parent_t::queryInterface;
-    ;
 
 protected:
     int _level; // busLevel
