@@ -27,9 +27,6 @@ namespace xp {
 namespace detail {
 
 struct QueryState : IQueryState {
-private:
-    std::unordered_set<void*> _searched;
-
 public:
     virtual void addSearched(void* p) override
     {
@@ -39,6 +36,9 @@ public:
     {
         return _searched.count(p);
     }
+
+private:
+    std::unordered_set<void*> _searched;
 };
 } // namespace detail
 
@@ -301,6 +301,7 @@ public:
     {
         if (!_cleared) {
             _cleared = true;
+            _bus = nullptr;
             onClear();
         }
     }
@@ -577,6 +578,7 @@ public:
     {
         if (!_cleared) {
             _cleared = true;
+            _bus = nullptr;
             this->onClear();
         }
     }
