@@ -111,8 +111,15 @@ TEST_CASE("refobj", tag)
 {
     SECTION("manual ref")
     {
-        auto p = new xp::TRefObj<Dummy>;
+        using dummy_t = xp::TRefObj<Dummy>;
+        auto p = new dummy_t;
         CHECK(p->count() == 0);
+        ON_EXIT({
+            if (p) {
+                p->ref();
+                p->unref(); // make sure it is released.
+            }
+        });
 
         SECTION("usage")
         {
@@ -126,6 +133,14 @@ TEST_CASE("refobj", tag)
             p->unref();
 
             // p is now a dangling pointer!!!
+            p = nullptr;
+        }
+        SECTION("copy operator")
+        {
+            [[maybe_unused]] dummy_t* q = new dummy_t;
+            //*q = *p;  //cannot compile
+            q->ref();
+            q->unref();
         }
     }
 
@@ -169,7 +184,7 @@ TEST_CASE("interface", tag)
     {
         auto_ref obj = new TInterface<IDummy>();
 
-        CHECK(IID(IDummy) == std::string("dummy.2020"));
+        CHECK(IID(IDummy) == xp::calc_iid("dummy.2020"));
         CHECK(intf_cast<IInterface>(obj.get()) == obj.get());
 
         CHECK(obj->supports(IID(IDummy)));

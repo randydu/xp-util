@@ -15,10 +15,6 @@ constexpr int max_clear_pass = 3;
 }
 
 namespace xp {
-bool equalIID(const TIntfId id1, const TIntfId id2)
-{
-    return 0 == strcmp(id1, id2);
-}
 
 namespace {
 std::logic_error api_already_disabled("api already disabled!");
@@ -48,10 +44,10 @@ void TBus::reset()
     // explicitly pass-ordered resource release
     // for the same pass, the later installed interface is released first.
     for (int pass = 0; pass < max_clear_pass; pass++) {
-        for (std::vector<IInterfaceEx*>::reverse_iterator it = _intfs.rbegin(); it != _intfs.rend(); ++it) {
+        for (auto it = _intfs.rbegin(); it != _intfs.rend(); ++it) {
             IInterfaceEx* intf = *it;
             if (pass == intf->getFinishPass()) {
-                intf->finish();
+               intf->finish();
             }
         }
     }

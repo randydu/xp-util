@@ -36,7 +36,13 @@ namespace xp {
  * Here we use a string instead of a GUID for more good code readability, it of course can be
  * a classical UUID string representation.
  */
-typedef const char* TIntfId;
+
+//Calculate interface-id from a string
+inline auto calc_iid(const char* id_str)
+{
+    return std::hash<std::string>{}(id_str);
+}
+using TIntfId = decltype(calc_iid(""));
 
 /**
  * \def DECLARE_IID
@@ -46,7 +52,13 @@ typedef const char* TIntfId;
  */
 //#define DECLARE_IID(x) static inline xp::TIntfId iid() {return x;}
 //#define DECLARE_IID(x) constexpr static auto iid = x
-#define DECLARE_IID(x) constexpr static auto iid(){ return x; }
+
+
+#define CALC_IID(x) xp::calc_iid(x)
+
+#define DECLARE_IID(x) inline static auto iid(){ static auto h = xp::calc_iid(x); return h; }
+
+
 
 /**
  * \def IID
@@ -58,7 +70,9 @@ typedef const char* TIntfId;
  * \fn bool equalIID(const TIntfId id1, const TIntfId id2);
  * \brief tests if two IIDs are equal.
  */
-extern bool equalIID(const TIntfId id1, const TIntfId id2);
+constexpr bool equalIID(const TIntfId id1, const TIntfId id2){
+    return id1 == id2;
+}
 
 #ifndef INTERFACE
 #define INTERFACE struct
