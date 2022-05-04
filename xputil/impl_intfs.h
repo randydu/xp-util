@@ -310,15 +310,10 @@ public:
     {
         return _cleared;
     }
-    virtual int getFinishPass() const override
-    {
-        return _finish_pass;
-    }
 
 protected:
     IBus* _bus{nullptr};
     bool _cleared{false}; // any apis should not be called any more
-    int _finish_pass{1};
 
     ~TInterfaceEx() = default;
 
@@ -591,10 +586,6 @@ public:
     {
         return _cleared;
     }
-    virtual int getFinishPass() const override
-    {
-        return _finish_pass;
-    }
 
     // IInterface
     virtual int queryInterface(TIntfId iid, void** retIntf) override
@@ -606,7 +597,6 @@ public:
 protected:
     IBus* _bus{nullptr};  // non-referenced
     bool _cleared{false}; // any apis should not be called any more
-    int _finish_pass{1};
 
     ~TInterfaceExBase() = default;
 
@@ -641,7 +631,7 @@ public:
     int total_siblings() const { return _siblings.size(); }
 
     // IBus
-    [[nodiscard]] virtual bool connect(IInterfaceEx* intf) override;
+    [[nodiscard]] virtual bool connect(IInterfaceEx* intf, int order = 0) override;
     virtual void disconnect(IInterfaceEx* intf) override;
 
     virtual int level() const override
@@ -658,7 +648,7 @@ public:
 protected:
     int _level; // busLevel
     // IBus* _bus; //hosting bus with a more secure level ( _bus->level() <= this->level() )
-    std::vector<IInterfaceEx*> _intfs;
+    std::vector<std::pair<int, IInterfaceEx*>> _intfs;
     std::vector<IBus*> _buses;    // connected buses with less secure levels ( >= this->level() ), strong-referenced.
     std::vector<IBus*> _siblings; // bus with the same level as mine. (weak-referenced)
 

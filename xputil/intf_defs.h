@@ -200,12 +200,6 @@ struct IInterfaceEx : public IInterface {
      */
     virtual void finish() = 0;
     virtual bool finished() const = 0;
-
-    /**
-     * When the interface should be finished?
-     * the most basic interface should have a higher pass value (service closed later)
-     */
-    virtual int getFinishPass() const = 0;
 };
 
 #define IID_IINTERFACEEX IID(IInterfaceEx)
@@ -224,16 +218,22 @@ struct IBus : public IInterfaceEx {
     DECLARE_IID("B7914714-4159-48C6-BFF3-A21C6F0BB1CA");
 
     /**
-     * Connect the intf to this bus.
+     * @brief Connect the intf to this bus.
      *
-     * intf can be a normal interface or a IBus. For a IBus, only the bus with higher or equal bus level
+     * @param intf can be a normal interface or a IBus. For a IBus, only the bus with higher or equal bus level
      * can be successfully connected to this bus for security concern, because by design the low level bus should
      * hosting more secure interfaces which should not be browsed from less secure interfaces on higher level bus.
      *
      *  connect(interface _or_ less-secure-bus)
      *
+     * @param order When the interface should be finished? (applied to non-bus interface only)
+     *      the most basic interface should have a higher pass value (service closed later).
+     *      
+     * 
+     * @return true if the interface is connected successfully
      */
-    [[nodiscard]] virtual bool connect(IInterfaceEx* intf) = 0;
+    [[nodiscard]] virtual bool connect(IInterfaceEx* intf, int order = 0) = 0;
+
     /**
      * Disconnect the intf ( a normal interface or an interace bus) from this bus.
      * After disconnection, the intf itself and all interfaces hosted on it (for a bus) cannot be reached from

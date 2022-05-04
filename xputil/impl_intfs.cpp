@@ -45,13 +45,13 @@ void TBus::reset()
     // for the same pass, the later installed interface is released first.
     for (int pass = 0; pass < max_clear_pass; pass++) {
         for (auto it = _intfs.rbegin(); it != _intfs.rend(); ++it) {
-            IInterfaceEx* intf = *it;
-            if (pass == intf->getFinishPass()) {
-               intf->finish();
+            auto [order, intf] = *it;
+            if (pass == order) {
+                intf->finish();
             }
         }
     }
-    for (auto intf : _intfs) {
+    for (auto [_, intf] : _intfs) {
         intf->setBus(nullptr);
         intf->unref();
     }
@@ -68,7 +68,7 @@ void TBus::reset()
     _status = CLEARED;
 }
 
-bool TBus::connect(IInterfaceEx* intf)
+bool TBus::connect(IInterfaceEx* intf, int order)
 {
     assert_api_not_closed();
 
@@ -130,11 +130,11 @@ bool TBus::connect(IInterfaceEx* intf)
     }
 
     // no duplicated interfaces
-    if (auto it = std::find(_intfs.begin(), _intfs.end(), intf); it != _intfs.end())
+    if (auto it = std::find_if(_intfs.begin(), _intfs.end(), [intf](const auto& x){ return x.second == intf; }); it != _intfs.end())
         return false;
 
     intf->ref();
-    _intfs.push_back(intf);
+    _intfs.emplace_back(order, intf);
     intf->setBus(this);
     return true;
 }
@@ -144,7 +144,7 @@ void TBus::disconnect(IInterfaceEx* intf)
     assert_api_not_closed();
 
     // interfaces first
-    if (auto it = find(_intfs.begin(), _intfs.end(), intf); it != _intfs.end()) {
+    if (auto it = std::find_if(_intfs.begin(), _intfs.end(), [intf](const auto& x){ return x.second == intf; }); it != _intfs.end()){
         _intfs.erase(it);
         intf->setBus(nullptr);
         intf->unref();
@@ -189,7 +189,7 @@ void TBus::addSiblingBus(IBus* bus)
 {
     assert_api_not_closed();
 
-    if(auto it = find(_siblings.begin(), _siblings.end(), bus); it == _siblings.end()) {
+    if (auto it = find(_siblings.begin(), _siblings.end(), bus); it == _siblings.end()) {
         _siblings.push_back(bus);
     }
 }
@@ -198,7 +198,7 @@ void TBus::removeSiblingBus(IBus* bus)
 {
     assert_api_not_closed();
 
-    if(auto it = find(_siblings.begin(), _siblings.end(), bus); it != _siblings.end()) {
+    if (auto it = find(_siblings.begin(), _siblings.end(), bus); it != _siblings.end()) {
         _siblings.erase(it);
     }
 }
@@ -216,7 +216,7 @@ int TBus::queryInterfaceEx(TIntfId iid, void** retIntf, IQueryState& qst)
     qst.addSearched(this);
 
     // scanning interfaces in my slots
-    for (auto intf : _intfs) {
+    for (auto [_, intf] : _intfs) {
         if (!qst.isSearched(intf) && intf->queryInterfaceEx(iid, retIntf, qst) == 0) {
             return 0;
         }
