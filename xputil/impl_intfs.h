@@ -28,11 +28,11 @@ namespace detail {
 
 struct QueryState : IQueryState {
 public:
-    virtual void addSearched(void* p) override
+    void addSearched(void* p) override
     {
         _searched.insert(p);
     }
-    virtual bool isSearched(void* p) const override
+    bool isSearched(void* p) const override
     {
         return _searched.count(p);
     }
@@ -64,13 +64,13 @@ public:
     TRefObj& operator=(TRefObj&& other) = delete;
 
     // IRefObj
-    virtual void ref() override
+    void ref() override
     {
         if (_monitor)
             _monitor(this, _count, ref_api_t::REF);
         ++_count;
     }
-    virtual void unref() override
+    void unref() override
     {
         if (_monitor)
             _monitor(this, _count, ref_api_t::UNREF);
@@ -80,7 +80,7 @@ public:
             delete this;
         }
     }
-    virtual void unrefNoDelete() override
+    void unrefNoDelete() override
     {
         if (_monitor)
             _monitor(this, _count, ref_api_t::UNREF_NODELETE);
@@ -88,12 +88,12 @@ public:
             throw std::logic_error("::unrefNoDelete() >> ref-count is already 0.");
         --_count;
     }
-    virtual int count() const override { return _count; }
+    int count() const override { return _count; }
 
     void setMonitor(ref_monitor_t monitor) { _monitor = monitor; }
 
 protected:
-    ~TRefObj() = default; // protected destructor to enforce heap-based allocation.
+    ~TRefObj() override = default; // protected destructor to enforce heap-based allocation.
 private:
     int _count{0};
     ref_monitor_t _monitor;
@@ -146,7 +146,7 @@ public:
     using parent_t::parent_t; // gsl C.52
 
     // IInterface
-    virtual int queryInterface(TIntfId iid, void** retIntf) override
+    int queryInterface(TIntfId iid, void** retIntf) override
     {
         if (equalIID(iid, IID(T)) || equalIID(iid, IID_IINTERFACE)) {
             this->ref();
@@ -158,7 +158,7 @@ public:
     }
 
 protected:
-    ~TInterface() = default; // no stack object
+    ~TInterface() override = default; // no stack object
 };
 
 template <class T, class... S>
@@ -170,7 +170,7 @@ public:
     using parent_t::parent_t; // gsl C.52
 
     // IInterface
-    virtual int queryInterface(TIntfId iid, void** retIntf) override
+    int queryInterface(TIntfId iid, void** retIntf) override
     {
         if (match_iid<S...>(iid, retIntf)) {
             return 0;
@@ -185,7 +185,7 @@ public:
     }
 
 protected:
-    ~TMultiInterface() = default;
+    ~TMultiInterface() override = default;
 
 private:
     template <typename U, typename... V>
@@ -265,13 +265,13 @@ public:
     using parent_t::parent_t; // gsl C.52
 
     // IInterface
-    virtual int queryInterface(TIntfId iid, void** retIntf) override
+    int queryInterface(TIntfId iid, void** retIntf) override
     {
         detail::QueryState qst;
         return queryInterfaceEx(iid, retIntf, qst);
     }
     // IInterfaceEx
-    virtual int queryInterfaceEx(TIntfId iid, void** retIntf, IQueryState& qst) override
+    int queryInterfaceEx(TIntfId iid, void** retIntf, IQueryState& qst) override
     {
         if constexpr (check_iid) { // multi-interfaceex check by iteself; also fix ambiguous T::iid compiling issue when T inherits multiple interfaces.
             if (equalIID(iid, IID(T)) || equalIID(iid, IID_IINTERFACEEX) || equalIID(iid, IID_IINTERFACE)) {
@@ -290,14 +290,14 @@ public:
         }
         return 1;
     }
-    virtual void setBus(IBus* bus) override
+    void setBus(IBus* bus) override
     {
         if (_bus != nullptr && bus != nullptr)
             throw std::logic_error("TInterfaceEx::_setBus() >> hosting bus already exists!");
         _bus = bus;
     }
 
-    virtual void finish() override
+    void finish() override
     {
         if (!_cleared) {
             _cleared = true;
@@ -307,7 +307,7 @@ public:
     }
 
     // query if the apis should be disabled.
-    virtual bool finished() const override
+    bool finished() const override
     {
         return _cleared;
     }
@@ -316,7 +316,7 @@ protected:
     IBus* _bus{nullptr};
     bool _cleared{false}; // any apis should not be called any more
 
-    ~TInterfaceEx() = default;
+    ~TInterfaceEx() override = default;
 
     virtual void onClear() {} // called when the finish() is invokded. subclass may override this to release managed resources before destructor.
 };
@@ -352,7 +352,7 @@ public:
 
     using parent_t::queryInterface;
 
-    virtual int queryInterfaceEx(TIntfId iid, void** retIntf, IQueryState& qst) override
+    int queryInterfaceEx(TIntfId iid, void** retIntf, IQueryState& qst) override
     {
         if (match_iid<S...>(iid, retIntf)) {
             return 0;
@@ -376,7 +376,7 @@ public:
     }
 
 protected:
-    ~TMultiInterfaceEx() = default;
+    ~TMultiInterfaceEx() override = default;
 
 private:
     template <typename U, typename... V>
@@ -463,7 +463,7 @@ public:
     TInterfaceBase() = default;
 
     // IInterface
-    virtual int queryInterface(TIntfId iid, void** retIntf) override
+    int queryInterface(TIntfId iid, void** retIntf) override
     {
         if (equalIID(iid, IID(T)) || equalIID(iid, IID_IINTERFACE)) {
             this->ref();
@@ -481,7 +481,7 @@ public:
     }
 
 protected:
-    ~TInterfaceBase() = default;
+    ~TInterfaceBase() override = default;
 
 private:
     template <typename U, typename... V>
@@ -519,8 +519,8 @@ private:
 
    class FooBar : public TInterfaceExBase<IFoo, IBar> {
        public:
-           virtual void foo() override {}
-           virtual void bar() override {}
+           void foo() override {}
+           void bar() override {}
    };
 
    auto_ref bus = new TBus();
@@ -545,7 +545,7 @@ public:
     TInterfaceExBase() = default;
 
     // IInterfaceEx
-    virtual int queryInterfaceEx(TIntfId iid, void** retIntf, IQueryState& qst) override
+    int queryInterfaceEx(TIntfId iid, void** retIntf, IQueryState& qst) override
     {
         if (equalIID(iid, IID_IINTERFACEEX) || equalIID(iid, IID_IINTERFACE)) {
             this->ref();
@@ -567,14 +567,14 @@ public:
         return 1;
     }
 
-    virtual void setBus(IBus* bus) override
+    void setBus(IBus* bus) override
     {
         if (_bus != nullptr && bus != nullptr)
             throw std::logic_error("TInterfaceEx::_setBus() >> hosting bus already exists!");
         _bus = bus;
     }
 
-    virtual void finish() override
+    void finish() override
     {
         if (!_cleared) {
             _cleared = true;
@@ -584,13 +584,13 @@ public:
     }
 
     // query if the apis should be disabled.
-    virtual bool finished() const override
+    bool finished() const override
     {
         return _cleared;
     }
 
     // IInterface
-    virtual int queryInterface(TIntfId iid, void** retIntf) override
+    int queryInterface(TIntfId iid, void** retIntf) override
     {
         detail::QueryState qst;
         return queryInterfaceEx(iid, retIntf, qst);
@@ -600,7 +600,7 @@ protected:
     IBus* _bus{nullptr};  // non-referenced
     bool _cleared{false}; // any apis should not be called any more
 
-    ~TInterfaceExBase() = default;
+    ~TInterfaceExBase() override = default;
 
     virtual void onClear() {} // called when finish() is invokded.
 
@@ -633,19 +633,19 @@ public:
     int total_siblings() const { return _siblings.size(); }
 
     // IBus
-    [[nodiscard]] virtual bool connect(IInterfaceEx* intf, int order = 0) override;
-    virtual void disconnect(IInterfaceEx* intf) override;
+    [[nodiscard]] bool connect(IInterfaceEx* intf, int order = 0) override;
+    void disconnect(IInterfaceEx* intf) override;
 
-    virtual int level() const override
+    int level() const override
     {
         return _level;
     }
-    virtual IBus* findFirstBusByLevel(int busLevel) const override;
+    IBus* findFirstBusByLevel(int busLevel) const override;
 
-    virtual void addSiblingBus(IBus* bus) override;
-    virtual void removeSiblingBus(IBus* bus) override;
+    void addSiblingBus(IBus* bus) override;
+    void removeSiblingBus(IBus* bus) override;
 
-    virtual int queryInterfaceEx(TIntfId iid, void** retIntf, IQueryState& qst) override;
+    int queryInterfaceEx(TIntfId iid, void** retIntf, IQueryState& qst) override;
 
 protected:
     int _level; // busLevel
@@ -654,11 +654,11 @@ protected:
     std::vector<IBus*> _buses;    // connected buses with less secure levels ( >= this->level() ), strong-referenced.
     std::vector<IBus*> _siblings; // bus with the same level as mine. (weak-referenced)
 
-    virtual ~TBus()
+    ~TBus() override
     {
         reset();
     }
-    virtual void onClear()
+    void onClear() override
     {
         reset();
     }
