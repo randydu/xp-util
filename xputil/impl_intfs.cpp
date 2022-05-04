@@ -16,10 +16,6 @@ constexpr int max_clear_pass = 3;
 
 namespace xp {
 
-namespace {
-std::logic_error api_already_disabled("api already disabled!");
-}
-
 xp_error_code resolve(gsl::not_null<IInterfaceEx*> pex, TIntfId iid, void** retIntf, IQueryState& qst)
 {
     if (!qst.isSearched(pex)) {
@@ -28,18 +24,10 @@ xp_error_code resolve(gsl::not_null<IInterfaceEx*> pex, TIntfId iid, void** retI
     return xp_error_code::INTF_NOT_RESOLVED;
 }
 // TBus
-void TBus::assert_api_not_closed() const
-{
-    if (_status == CLEARED)
-        throw api_already_disabled;
-}
 
 void TBus::reset()
 {
-    if (_status != ACTIVE)
-        return;
-
-    _status = CLEARING;
+    Expects(!this->finished());
 
     for (auto p : _siblings) {
         p->removeSiblingBus(this);
@@ -71,13 +59,11 @@ void TBus::reset()
         bus->unref();
     }
     _buses.clear();
-
-    _status = CLEARED;
 }
 
 bool TBus::connect(gsl::not_null<IInterfaceEx*> intf, int order)
 {
-    assert_api_not_closed();
+    Expects(!this->finished());
 
     if (intf == this) return false; // no loop-back.
 
@@ -147,7 +133,7 @@ bool TBus::connect(gsl::not_null<IInterfaceEx*> intf, int order)
 
 void TBus::disconnect(gsl::not_null<IInterfaceEx*> intf)
 {
-    assert_api_not_closed();
+    Expects(!this->finished());
 
     // interfaces first
     if (auto it = std::find_if(_intfs.begin(), _intfs.end(), [intf](const auto& x) { return x.second == intf; }); it != _intfs.end()) {
@@ -168,7 +154,7 @@ void TBus::disconnect(gsl::not_null<IInterfaceEx*> intf)
 
 IBus* TBus::findFirstBusByLevel(int busLevel) const
 {
-    assert_api_not_closed();
+    Expects(!this->finished());
 
     if (busLevel < _level)
         return nullptr;
@@ -189,14 +175,14 @@ IBus* TBus::findFirstBusByLevel(int busLevel) const
 
 void TBus::addSiblingBus(gsl::not_null<IBus*> bus)
 {
-    assert_api_not_closed();
+    Expects(!this->finished());
 
     _siblings.insert(bus);
 }
 
 void TBus::removeSiblingBus(gsl::not_null<IBus*> bus)
 {
-    assert_api_not_closed();
+    Expects(!this->finished());
 
     _siblings.erase(bus);
 }
@@ -211,8 +197,6 @@ xp_error_code TBus::queryInterfaceEx(TIntfId iid, void** retIntf, IQueryState& q
         this->ref();
         return xp_error_code::OK;
     }
-
-    assert_api_not_closed();
 
     qst.addSearched(this);
 

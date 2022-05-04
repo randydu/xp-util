@@ -268,6 +268,8 @@ public:
     // IInterface
     xp_error_code queryInterface(TIntfId iid, void** retIntf) override
     {
+        Expects(!_cleared);
+
         detail::QueryState qst;
         return queryInterfaceEx(iid, retIntf, qst);
     }
@@ -296,16 +298,11 @@ public:
     void finish() override
     {
         if (!_cleared) {
-            _cleared = true;
-            _bus = nullptr;
             onClear();
-        }
-    }
 
-    // query if the apis should be disabled.
-    bool finished() const override
-    {
-        return _cleared;
+            _bus = nullptr;
+            _cleared = true;
+        }
     }
 
 protected:
@@ -315,6 +312,11 @@ protected:
     xp_error_code searchBus(TIntfId iid, void** retIntf, IQueryState& qst)
     {
         return _bus ? resolve(_bus, iid, retIntf, qst) : xp_error_code::INTF_NOT_RESOLVED;
+    }
+
+    constexpr bool finished() const
+    {
+        return _cleared;
     }
 
 private:
@@ -574,15 +576,11 @@ public:
         }
     }
 
-    // query if the apis should be disabled.
-    bool finished() const override
-    {
-        return _cleared;
-    }
-
     // IInterface
     xp_error_code queryInterface(TIntfId iid, void** retIntf) override
     {
+        Expects(!_cleared);
+
         detail::QueryState qst;
         return queryInterfaceEx(iid, retIntf, qst);
     }
@@ -641,14 +639,14 @@ public:
 protected:
     ~TBus() override
     {
-        reset();
+        if (!this->finished()) reset();
     }
 
 private:
     int _level; // busLevel
     // IBus* _bus; //hosting bus with a more secure level ( _bus->level() <= this->level() )
     std::vector<std::pair<int, IInterfaceEx*>> _intfs;
-    std::vector<IBus*> _buses;    // connected buses with less secure levels ( >= this->level() ), strong-referenced.
+    std::vector<IBus*> _buses;           // connected buses with less secure levels ( >= this->level() ), strong-referenced.
     std::unordered_set<IBus*> _siblings; // bus with the same level as mine. (weak-referenced)
 
     void onClear() override
@@ -657,14 +655,6 @@ private:
     }
 
     void reset();
-
-    enum {
-        ACTIVE,
-        CLEARING,
-        CLEARED
-    } _status{ACTIVE};
-
-    void assert_api_not_closed() const;
 };
 
 } // namespace xp

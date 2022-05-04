@@ -357,7 +357,6 @@ TEST_CASE("bus", tag)
         auto_ref bus = new TBus(0);
         CHECK(bus->count() == 1);
         CHECK(bus->level() == 0);
-        CHECK_FALSE(bus->finished());
 
         SECTION("same interface cannot be added to the same bus")
         {
@@ -463,7 +462,6 @@ TEST_CASE("bus", tag)
             SECTION("bus finish")
             {
                 bus->finish();
-                CHECK(bus->finished());
                 CHECK(bus->count() == 1);
                 CHECK(bus->total_intfs() == 0);
                 CHECK(bus->total_buses() == 0);
@@ -535,8 +533,6 @@ TEST_CASE("bus", tag)
             CHECK(bus1->count() == 1); // local auto_ref
 
             bus1->finish();
-            CHECK(bus1->finished());
-            CHECK_FALSE(bus0->finished()); // bus0 not affected.
         }
 
         SECTION("sibling bus, no dangling bus")

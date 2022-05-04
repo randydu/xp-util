@@ -207,7 +207,6 @@ struct IInterfaceEx : public IInterface {
      * at this point
      */
     virtual void finish() = 0;
-    virtual bool finished() const = 0;
 };
 
 #define IID_IINTERFACEEX IID(IInterfaceEx)
