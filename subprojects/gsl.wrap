@@ -1,0 +1,9 @@
+[wrap-git]
+
+directory = gsl
+url=https://github.com/randydu/meson-subproject-gsl.git
+revision = v1.0
+clone-recursive = true
+
+[provide]
+gsl = gsl_dep

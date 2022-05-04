@@ -20,6 +20,13 @@ namespace {
 std::logic_error api_already_disabled("api already disabled!");
 }
 
+xp_error_code resolve(gsl::not_null<IInterfaceEx*> pex, TIntfId iid, void** retIntf, IQueryState& qst)
+{
+    if (!qst.isSearched(pex)) {
+        return pex->queryInterfaceEx(iid, retIntf, qst);
+    }
+    return xp_error_code::INTF_NOT_RESOLVED;
+}
 // TBus
 void TBus::assert_api_not_closed() const
 {
@@ -68,17 +75,16 @@ void TBus::reset()
     _status = CLEARED;
 }
 
-bool TBus::connect(IInterfaceEx* intf, int order)
+bool TBus::connect(gsl::not_null<IInterfaceEx*> intf, int order)
 {
     assert_api_not_closed();
 
-    if (intf == nullptr || intf == this)
-        return false; // no loop-back.
+    if (intf == this) return false; // no loop-back.
 
 
     IBus* bus;
     detail::QueryState qst;
-    if (0 == intf->queryInterfaceEx(IID_IBUS, (void**)&bus, qst)) {
+    if (intf->queryInterfaceEx(IID_IBUS, (void**)&bus, qst) == xp_error_code::OK) {
         ON_EXIT(bus->unref();); // balance queryInterface
 
         const int level = bus->level();
@@ -118,7 +124,7 @@ bool TBus::connect(IInterfaceEx* intf, int order)
                 return false;
 
             // weak reference only for sibling bus to avoid reference deadlock, remove when being destroyed.
-            _siblings.push_back(bus);
+            _siblings.insert(bus);
             // sibling bus, mutual connection
             bus->addSiblingBus(this);
 
@@ -130,7 +136,7 @@ bool TBus::connect(IInterfaceEx* intf, int order)
     }
 
     // no duplicated interfaces
-    if (auto it = std::find_if(_intfs.begin(), _intfs.end(), [intf](const auto& x){ return x.second == intf; }); it != _intfs.end())
+    if (auto it = std::find_if(_intfs.begin(), _intfs.end(), [intf](const auto& x) { return x.second == intf; }); it != _intfs.end())
         return false;
 
     intf->ref();
@@ -139,12 +145,12 @@ bool TBus::connect(IInterfaceEx* intf, int order)
     return true;
 }
 
-void TBus::disconnect(IInterfaceEx* intf)
+void TBus::disconnect(gsl::not_null<IInterfaceEx*> intf)
 {
     assert_api_not_closed();
 
     // interfaces first
-    if (auto it = std::find_if(_intfs.begin(), _intfs.end(), [intf](const auto& x){ return x.second == intf; }); it != _intfs.end()){
+    if (auto it = std::find_if(_intfs.begin(), _intfs.end(), [intf](const auto& x) { return x.second == intf; }); it != _intfs.end()) {
         _intfs.erase(it);
         intf->setBus(nullptr);
         intf->unref();
@@ -157,7 +163,7 @@ void TBus::disconnect(IInterfaceEx* intf)
         return;
     }
 
-    removeSiblingBus(static_cast<IBus*>(intf));
+    removeSiblingBus(static_cast<IBus*>(intf.get()));
 }
 
 IBus* TBus::findFirstBusByLevel(int busLevel) const
@@ -171,44 +177,39 @@ IBus* TBus::findFirstBusByLevel(int busLevel) const
         return (IBus*)this;
 
     for (auto bus : _buses) {
-        auto p = bus->findFirstBusByLevel(busLevel);
-        if (p)
-            return p;
+        if (auto p = bus->findFirstBusByLevel(busLevel); p) return p;
     }
 
     for (auto bus : _siblings) {
-        auto p = bus->findFirstBusByLevel(busLevel);
-        if (p)
-            return p;
+        if(auto p = bus->findFirstBusByLevel(busLevel);p) return p;
     }
 
     return nullptr;
 }
 
-void TBus::addSiblingBus(IBus* bus)
+void TBus::addSiblingBus(gsl::not_null<IBus*> bus)
 {
     assert_api_not_closed();
 
-    if (auto it = find(_siblings.begin(), _siblings.end(), bus); it == _siblings.end()) {
-        _siblings.push_back(bus);
-    }
+    _siblings.insert(bus);
 }
 
-void TBus::removeSiblingBus(IBus* bus)
+void TBus::removeSiblingBus(gsl::not_null<IBus*> bus)
 {
     assert_api_not_closed();
 
-    if (auto it = find(_siblings.begin(), _siblings.end(), bus); it != _siblings.end()) {
-        _siblings.erase(it);
-    }
+    _siblings.erase(bus);
 }
 
-int TBus::queryInterfaceEx(TIntfId iid, void** retIntf, IQueryState& qst)
+xp_error_code TBus::queryInterfaceEx(TIntfId iid, void** retIntf, IQueryState& qst)
 {
+    Expects(retIntf);
+    *retIntf = nullptr;
+
     if (equalIID(iid, IID_IBUS) || equalIID(iid, IID_IINTERFACEEX) || equalIID(iid, IID_IINTERFACE)) {
         *retIntf = (IInterfaceEx*)(this);
         this->ref();
-        return 0;
+        return xp_error_code::OK;
     }
 
     assert_api_not_closed();
@@ -217,24 +218,18 @@ int TBus::queryInterfaceEx(TIntfId iid, void** retIntf, IQueryState& qst)
 
     // scanning interfaces in my slots
     for (auto [_, intf] : _intfs) {
-        if (!qst.isSearched(intf) && intf->queryInterfaceEx(iid, retIntf, qst) == 0) {
-            return 0;
-        }
+        if (resolve(intf, iid, retIntf, qst) == xp_error_code::OK) return xp_error_code::OK;
     }
     // scan sibling buses
     for (auto bus : _siblings) {
-        if (!qst.isSearched(bus) && bus->queryInterfaceEx(iid, retIntf, qst) == 0) {
-            return 0;
-        }
+        if (resolve(bus, iid, retIntf, qst) == xp_error_code::OK) return xp_error_code::OK;
     }
     // scanning connected upper-level/less-secure buses
     for (auto bus : _buses) {
-        if (!qst.isSearched(bus) && bus->queryInterfaceEx(iid, retIntf, qst) == 0) {
-            return 0;
-        }
+        if (resolve(bus, iid, retIntf, qst) == xp_error_code::OK) return xp_error_code::OK;
     }
 
-    return 1;
+    return xp_error_code::INTF_NOT_RESOLVED;
 }
 
 } // namespace xp

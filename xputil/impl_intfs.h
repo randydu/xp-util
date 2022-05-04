@@ -21,6 +21,7 @@
 #include <memory>
 #include <stdexcept>
 #include <vector>
+#include <unordered_set>
 
 namespace xp {
 
@@ -146,15 +147,15 @@ public:
     using parent_t::parent_t; // gsl C.52
 
     // IInterface
-    int queryInterface(TIntfId iid, void** retIntf) override
+    xp_error_code queryInterface(TIntfId iid, void** retIntf) override
     {
         if (equalIID(iid, IID(T)) || equalIID(iid, IID_IINTERFACE)) {
             this->ref();
             *retIntf = (IInterface*)(this);
-            return 0;
+            return xp_error_code::OK;
         }
 
-        return 1;
+        return xp_error_code::INTF_NOT_RESOLVED;
     }
 
 protected:
@@ -170,18 +171,18 @@ public:
     using parent_t::parent_t; // gsl C.52
 
     // IInterface
-    int queryInterface(TIntfId iid, void** retIntf) override
+    xp_error_code queryInterface(TIntfId iid, void** retIntf) override
     {
         if (match_iid<S...>(iid, retIntf)) {
-            return 0;
+            return xp_error_code::OK;
         }
         if (equalIID(iid, IID_IINTERFACE)) {
             this->ref();
             *retIntf = (IInterface*)(this);
-            return 0;
+            return xp_error_code::OK;
         }
 
-        return 1;
+        return xp_error_code::INTF_NOT_RESOLVED;
     }
 
 protected:
@@ -265,30 +266,25 @@ public:
     using parent_t::parent_t; // gsl C.52
 
     // IInterface
-    int queryInterface(TIntfId iid, void** retIntf) override
+    xp_error_code queryInterface(TIntfId iid, void** retIntf) override
     {
         detail::QueryState qst;
         return queryInterfaceEx(iid, retIntf, qst);
     }
     // IInterfaceEx
-    int queryInterfaceEx(TIntfId iid, void** retIntf, IQueryState& qst) override
+    xp_error_code queryInterfaceEx(TIntfId iid, void** retIntf, IQueryState& qst) override
     {
         if constexpr (check_iid) { // multi-interfaceex check by iteself; also fix ambiguous T::iid compiling issue when T inherits multiple interfaces.
             if (equalIID(iid, IID(T)) || equalIID(iid, IID_IINTERFACEEX) || equalIID(iid, IID_IINTERFACE)) {
                 this->ref();
                 *retIntf = (IInterface*)(this);
-                return 0;
+                return xp_error_code::OK;
             }
         }
 
         qst.addSearched(this);
 
-        if (_bus) {
-            if (!qst.isSearched(_bus)) {
-                return _bus->queryInterfaceEx(iid, retIntf, qst);
-            }
-        }
-        return 1;
+        return this->searchBus(iid, retIntf, qst);
     }
     void setBus(IBus* bus) override
     {
@@ -313,12 +309,17 @@ public:
     }
 
 protected:
+    ~TInterfaceEx() override = default;
+    virtual void onClear() {} // called when the finish() is invokded. subclass may override this to release managed resources before destructor.
+
+    xp_error_code searchBus(TIntfId iid, void** retIntf, IQueryState& qst)
+    {
+        return _bus ? resolve(_bus, iid, retIntf, qst) : xp_error_code::INTF_NOT_RESOLVED;
+    }
+
+private:
     IBus* _bus{nullptr};
     bool _cleared{false}; // any apis should not be called any more
-
-    ~TInterfaceEx() override = default;
-
-    virtual void onClear() {} // called when the finish() is invokded. subclass may override this to release managed resources before destructor.
 };
 
 template <typename T, typename... TArgs>
@@ -352,27 +353,22 @@ public:
 
     using parent_t::queryInterface;
 
-    int queryInterfaceEx(TIntfId iid, void** retIntf, IQueryState& qst) override
+    xp_error_code queryInterfaceEx(TIntfId iid, void** retIntf, IQueryState& qst) override
     {
         if (match_iid<S...>(iid, retIntf)) {
-            return 0;
+            return xp_error_code::OK;
         }
 
         parent_t* p = static_cast<parent_t*>(this);
         if (equalIID(iid, IID_IINTERFACEEX) || equalIID(iid, IID_IINTERFACE)) {
             this->ref();
             *retIntf = p;
-            return 0;
+            return xp_error_code::OK;
         }
 
         qst.addSearched(p);
 
-        if (parent_t::_bus) {
-            if (!qst.isSearched(parent_t::_bus)) {
-                return parent_t::_bus->queryInterfaceEx(iid, retIntf, qst);
-            }
-        }
-        return 1;
+        return this->searchBus(iid, retIntf, qst);
     }
 
 protected:
@@ -463,21 +459,21 @@ public:
     TInterfaceBase() = default;
 
     // IInterface
-    int queryInterface(TIntfId iid, void** retIntf) override
+    xp_error_code queryInterface(TIntfId iid, void** retIntf) override
     {
         if (equalIID(iid, IID(T)) || equalIID(iid, IID_IINTERFACE)) {
             this->ref();
             *retIntf = static_cast<T*>(this);
-            return 0;
+            return xp_error_code::OK;
         }
 
         if constexpr (sizeof...(S) > 0) {
             if (match_iid<S...>(iid, retIntf)) {
-                return 0;
+                return xp_error_code::OK;
             }
         }
 
-        return 1;
+        return xp_error_code::INTF_NOT_RESOLVED;
     }
 
 protected:
@@ -545,26 +541,21 @@ public:
     TInterfaceExBase() = default;
 
     // IInterfaceEx
-    int queryInterfaceEx(TIntfId iid, void** retIntf, IQueryState& qst) override
+    xp_error_code queryInterfaceEx(TIntfId iid, void** retIntf, IQueryState& qst) override
     {
         if (equalIID(iid, IID_IINTERFACEEX) || equalIID(iid, IID_IINTERFACE)) {
             this->ref();
             *retIntf = (IInterfaceEx*)(this);
-            return 0;
+            return xp_error_code::OK;
         }
 
         if (match_iid<S...>(iid, retIntf)) {
-            return 0;
+            return xp_error_code::OK;
         }
 
         qst.addSearched(this);
 
-        if (_bus) {
-            if (!qst.isSearched(_bus)) {
-                return _bus->queryInterfaceEx(iid, retIntf, qst);
-            }
-        }
-        return 1;
+        return _bus ? resolve(_bus, iid, retIntf, qst) : xp_error_code::INTF_NOT_RESOLVED;
     }
 
     void setBus(IBus* bus) override
@@ -590,21 +581,21 @@ public:
     }
 
     // IInterface
-    int queryInterface(TIntfId iid, void** retIntf) override
+    xp_error_code queryInterface(TIntfId iid, void** retIntf) override
     {
         detail::QueryState qst;
         return queryInterfaceEx(iid, retIntf, qst);
     }
 
 protected:
-    IBus* _bus{nullptr};  // non-referenced
-    bool _cleared{false}; // any apis should not be called any more
-
     ~TInterfaceExBase() override = default;
 
     virtual void onClear() {} // called when finish() is invokded.
 
 private:
+    IBus* _bus{nullptr};  // non-referenced
+    bool _cleared{false}; // any apis should not be called any more
+
     template <typename U, typename... V>
     bool match_iid(TIntfId iid, void** retIntf)
     {
@@ -633,8 +624,8 @@ public:
     int total_siblings() const { return _siblings.size(); }
 
     // IBus
-    [[nodiscard]] bool connect(IInterfaceEx* intf, int order = 0) override;
-    void disconnect(IInterfaceEx* intf) override;
+    [[nodiscard]] bool connect(gsl::not_null<IInterfaceEx*> intf, int order = 0) override;
+    void disconnect(gsl::not_null<IInterfaceEx*> intf) override;
 
     int level() const override
     {
@@ -642,22 +633,24 @@ public:
     }
     IBus* findFirstBusByLevel(int busLevel) const override;
 
-    void addSiblingBus(IBus* bus) override;
-    void removeSiblingBus(IBus* bus) override;
+    void addSiblingBus(gsl::not_null<IBus*> bus) override;
+    void removeSiblingBus(gsl::not_null<IBus*> bus) override;
 
-    int queryInterfaceEx(TIntfId iid, void** retIntf, IQueryState& qst) override;
+    xp_error_code queryInterfaceEx(TIntfId iid, void** retIntf, IQueryState& qst) override;
 
 protected:
-    int _level; // busLevel
-    // IBus* _bus; //hosting bus with a more secure level ( _bus->level() <= this->level() )
-    std::vector<std::pair<int, IInterfaceEx*>> _intfs;
-    std::vector<IBus*> _buses;    // connected buses with less secure levels ( >= this->level() ), strong-referenced.
-    std::vector<IBus*> _siblings; // bus with the same level as mine. (weak-referenced)
-
     ~TBus() override
     {
         reset();
     }
+
+private:
+    int _level; // busLevel
+    // IBus* _bus; //hosting bus with a more secure level ( _bus->level() <= this->level() )
+    std::vector<std::pair<int, IInterfaceEx*>> _intfs;
+    std::vector<IBus*> _buses;    // connected buses with less secure levels ( >= this->level() ), strong-referenced.
+    std::unordered_set<IBus*> _siblings; // bus with the same level as mine. (weak-referenced)
+
     void onClear() override
     {
         reset();
@@ -665,7 +658,6 @@ protected:
 
     void reset();
 
-private:
     enum {
         ACTIVE,
         CLEARING,

@@ -12,6 +12,8 @@
 
 #include "class_attr.h"
 
+#include <gsl/pointers>
+
 namespace xp {
 /**
  * \file
@@ -38,9 +40,9 @@ namespace xp {
  */
 
 // Calculate interface-id from a string
-inline auto calc_iid(const char* id_str)
+inline auto calc_iid(gsl::not_null<const char*> id_str)
 {
-    return std::hash<std::string>{}(id_str);
+    return std::hash<std::string>{}(std::string(id_str));
 }
 using TIntfId = decltype(calc_iid(""));
 
@@ -108,6 +110,12 @@ protected:
     virtual ~IRefObj() = default; // heap-based only!
 };
 
+
+enum class xp_error_code : int {
+    OK = 0,
+    INTF_NOT_RESOLVED = 1,
+};
+
 /**
  * \interface IInterface
  * \brief root of all non-extensible interfaces
@@ -120,13 +128,13 @@ struct IInterface : virtual public IRefObj {
     /**
      *	Interface browsing, returns 0 if successful, non-zero error code if fails.
      */
-    virtual int queryInterface(TIntfId iid, void** retIntf) = 0;
+    virtual xp_error_code queryInterface(TIntfId iid, void** retIntf) = 0;
 
     // helper: detect if another interface is accessible
     bool supports(TIntfId iid)
     {
         IInterface* intf(nullptr);
-        if (0 == this->queryInterface(iid, (void**)&intf)) {
+        if (this->queryInterface(iid, (void**)&intf) == xp_error_code::OK) {
             assert(intf);
             if (intf) {
                 intf->unrefNoDelete(); // balance queryInterface()
@@ -140,7 +148,7 @@ struct IInterface : virtual public IRefObj {
     constexpr T* cast()
     {
         T* intf;
-        if (this->queryInterface(IID(T), (void**)&intf)) {
+        if (this->queryInterface(IID(T), (void**)&intf) != xp_error_code::OK) {
             return nullptr;
         }
         intf->unrefNoDelete(); // Balance counter (incremented within queryInterface)
@@ -149,10 +157,10 @@ struct IInterface : virtual public IRefObj {
 };
 
 template <typename T, typename F>
-constexpr T* intf_cast(F* from)
+constexpr T* intf_cast(gsl::not_null<F> from)
 {
     T* intf;
-    if (from->queryInterface(IID(T), (void**)&intf)) {
+    if (from->queryInterface(IID(T), (void**)&intf) != xp_error_code::OK) {
         return nullptr;
     }
     intf->unrefNoDelete(); // Balance counter (incremented within queryInterface)
@@ -181,7 +189,7 @@ struct IInterfaceEx : public IInterface {
     /**
      *	Interface browsing, returns 0 if successful, non-zero error code if fails.
      */
-    virtual int queryInterfaceEx(TIntfId iid, void** retIntf, IQueryState& qst) = 0;
+    virtual xp_error_code queryInterfaceEx(TIntfId iid, void** retIntf, IQueryState& qst) = 0;
     /**
      * set the hosting bus
      */
@@ -203,6 +211,17 @@ struct IInterfaceEx : public IInterface {
 };
 
 #define IID_IINTERFACEEX IID(IInterfaceEx)
+
+/**
+ * @brief Try resolving an interface from an interface extension.
+ *
+ * @param pex interface extension being queried
+ * @param iid unique id of interface to resolve
+ * @param retIntf [out] the interface resolved.
+ * @param qst current query helper
+ * @return xp_error_code
+ */
+xp_error_code resolve(gsl::not_null<IInterfaceEx*> pex, TIntfId iid, void** retIntf, IQueryState& qst);
 
 /**
  * \interface IBus
@@ -228,11 +247,11 @@ struct IBus : public IInterfaceEx {
      *
      * @param order When the interface should be finished? (applied to non-bus interface only)
      *      the most basic interface should have a higher pass value (service closed later).
-     *      
-     * 
+     *
+     *
      * @return true if the interface is connected successfully
      */
-    [[nodiscard]] virtual bool connect(IInterfaceEx* intf, int order = 0) = 0;
+    [[nodiscard]] virtual bool connect(gsl::not_null<IInterfaceEx*> intf, int order = 0) = 0;
 
     /**
      * Disconnect the intf ( a normal interface or an interace bus) from this bus.
@@ -240,7 +259,7 @@ struct IBus : public IInterfaceEx {
      * interface browsing, however, if it is already retrieved and locked before the disconnection, the interface
      * can still be used until it is released.
      */
-    virtual void disconnect(IInterfaceEx* intf) = 0;
+    virtual void disconnect(gsl::not_null<IInterfaceEx*> intf) = 0;
     /**
      * Get the Bus Level
      *
@@ -258,12 +277,12 @@ struct IBus : public IInterfaceEx {
     /**
      *  add a sibling bus as a weak reference.
      */
-    virtual void addSiblingBus(IBus* bus) = 0;
+    virtual void addSiblingBus(gsl::not_null<IBus*> bus) = 0;
     /**
      * Remove weak reference to a sibling bus.
      * called when the sibling bus is being destroyed.
      */
-    virtual void removeSiblingBus(IBus* bus) = 0;
+    virtual void removeSiblingBus(gsl::not_null<IBus*> bus) = 0;
 };
 
 #define IID_IBUS IID(IBus)
@@ -289,11 +308,11 @@ struct [[nodiscard]] IEnumeratorEx : public IRefObj {
     /// Is next value available?
     virtual bool hasNext() = 0;
     /// The next value
-    virtual T next() = 0;
+    virtual gsl::not_null<T> next() = 0;
     /// Get the total number of values.
     virtual std::size_t size() const = 0;
     /// Random access by index.
-    virtual T get(unsigned int index) const = 0;
+    virtual gsl::not_null<T> get(unsigned int index) const = 0;
     // go to first element to re-start the enumeration
     virtual void rewind() = 0;
 };

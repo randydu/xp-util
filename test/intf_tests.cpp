@@ -185,7 +185,7 @@ TEST_CASE("interface", tag)
         auto_ref obj = new TInterface<IDummy>();
 
         CHECK(IID(IDummy) == xp::calc_iid("dummy.2020"));
-        CHECK(intf_cast<IInterface>(obj.get()) == obj.get());
+        CHECK(intf_cast<IInterface>(gsl::not_null(obj.get())) == obj.get());
 
         CHECK(obj->supports(IID(IDummy)));
         CHECK(obj->supports(IID(IInterface)));
@@ -382,7 +382,8 @@ TEST_CASE("bus", tag)
 
         SECTION("valid augument")
         {
-            CHECK_FALSE(bus->connect(nullptr));
+            //invalid due to gsl::not_null
+            //CHECK_FALSE(bus->connect(nullptr));
         }
 
         SECTION("disconnect")

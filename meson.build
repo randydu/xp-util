@@ -5,5 +5,7 @@ if meson.get_compiler('cpp').get_id() == 'gcc'
     add_project_arguments(['-fmax-errors=1', '-Werror=unknown-pragmas'], language: 'cpp') 
 endif
 
+gsl_dep = dependency('gsl')
+
 subdir('xputil')
 subdir('test')
