@@ -37,7 +37,7 @@ namespace xp {
  * a classical UUID string representation.
  */
 
-//Calculate interface-id from a string
+// Calculate interface-id from a string
 inline auto calc_iid(const char* id_str)
 {
     return std::hash<std::string>{}(id_str);
@@ -56,8 +56,12 @@ using TIntfId = decltype(calc_iid(""));
 
 #define CALC_IID(x) xp::calc_iid(x)
 
-#define DECLARE_IID(x) inline static auto iid(){ static auto h = xp::calc_iid(x); return h; }
-
+#define DECLARE_IID(x)                   \
+    inline static auto iid()             \
+    {                                    \
+        static auto h = xp::calc_iid(x); \
+        return h;                        \
+    }
 
 
 /**
@@ -70,7 +74,8 @@ using TIntfId = decltype(calc_iid(""));
  * \fn bool equalIID(const TIntfId id1, const TIntfId id2);
  * \brief tests if two IIDs are equal.
  */
-constexpr bool equalIID(const TIntfId id1, const TIntfId id2){
+constexpr bool equalIID(const TIntfId id1, const TIntfId id2)
+{
     return id1 == id2;
 }
 
@@ -80,8 +85,6 @@ constexpr bool equalIID(const TIntfId id1, const TIntfId id2){
 
 class IRefObj
 {
-protected:
-    virtual ~IRefObj() = default; // heap-based only!
 public:
     /**
      * increase reference count
@@ -100,6 +103,9 @@ public:
      * returns reference count
      */
     virtual int count() const = 0;
+
+protected:
+    virtual ~IRefObj() = default; // heap-based only!
 };
 
 /**
@@ -155,7 +161,6 @@ constexpr T* intf_cast(F* from)
 
 
 #define IID_IINTERFACE IID(IInterface)
-
 
 
 struct IQueryState {
@@ -310,11 +315,6 @@ struct [[nodiscard]] IEnumeratorEx : public IRefObj {
 template <class T>
 class auto_ref
 {
-private:
-    T* _intf{nullptr};
-
-    NO_HEAP;
-
 public:
     auto_ref() = default;
 
@@ -458,6 +458,11 @@ public:
             _intf = nullptr;
         }
     }
+
+private:
+    T* _intf{nullptr};
+
+    NO_HEAP;
 };
 
 // deduction guide to support:

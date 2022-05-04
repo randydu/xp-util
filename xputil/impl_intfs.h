@@ -93,7 +93,7 @@ public:
     void setMonitor(ref_monitor_t monitor) { _monitor = monitor; }
 
 protected:
-    virtual ~TRefObj() = default; // protected destructor to enforce heap-based allocation.
+    ~TRefObj() = default; // protected destructor to enforce heap-based allocation.
 private:
     int _count{0};
     ref_monitor_t _monitor;
@@ -158,7 +158,7 @@ public:
     }
 
 protected:
-    virtual ~TInterface() = default; // no stack object
+    ~TInterface() = default; // no stack object
 };
 
 template <class T, class... S>
@@ -185,7 +185,7 @@ public:
     }
 
 protected:
-    virtual ~TMultiInterface() = default;
+    ~TMultiInterface() = default;
 
 private:
     template <typename U, typename... V>
@@ -320,7 +320,7 @@ protected:
     bool _cleared{false}; // any apis should not be called any more
     int _finish_pass{1};
 
-    virtual ~TInterfaceEx() = default;
+    ~TInterfaceEx() = default;
 
     virtual void onClear() {} // called when the finish() is invokded. subclass may override this to release managed resources before destructor.
 };
@@ -380,7 +380,7 @@ public:
     }
 
 protected:
-    virtual ~TMultiInterfaceEx() = default;
+    ~TMultiInterfaceEx() = default;
 
 private:
     template <typename U, typename... V>
@@ -485,7 +485,7 @@ public:
     }
 
 protected:
-    virtual ~TInterfaceBase() = default;
+    ~TInterfaceBase() = default;
 
 private:
     template <typename U, typename... V>
@@ -608,7 +608,7 @@ protected:
     bool _cleared{false}; // any apis should not be called any more
     int _finish_pass{1};
 
-    virtual ~TInterfaceExBase() = default;
+    ~TInterfaceExBase() = default;
 
     virtual void onClear() {} // called when finish() is invokded.
 
