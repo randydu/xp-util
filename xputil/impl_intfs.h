@@ -445,7 +445,7 @@ private:
 template <class T, class... S>
 class TInterfaceBase : virtual public TRefObj<T>, virtual public S...
 {
-    constexpr void concept()
+    constexpr void concept_check()
     {
         // T, S... are interfaces derived from IInterface only.
         static_assert(std::is_base_of_v<IInterface, T>);
