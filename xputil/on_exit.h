@@ -3,28 +3,28 @@
 
 #include <utility>
 
-namespace {
+namespace xp {
 template <typename T>
 class exit_exec
 {
-private:
-    T f_;
-
 public:
     exit_exec(T&& f) : f_(std::forward<T>(f)) {}
     ~exit_exec() { f_(); }
+
+private:
+    T f_;
 };
 
-template <typename T, typename U = exit_exec<T>>
-inline U make_on_exit(T&& f)
+template <typename T>
+constexpr auto make_on_exit(T&& f)
 {
-    return U(std::forward<T>(f));
+    return exit_exec{std::forward<T>(f)};
 }
-} // namespace
+} // namespace xp
 
 #define COMBINE1(X, Y) X##Y // helper macro
 #define COMBINE(X, Y) COMBINE1(X, Y)
 
-#define ON_EXIT(code) auto COMBINE(exit_exec, __LINE__) = make_on_exit([&]() { code; })
+#define ON_EXIT(code) auto COMBINE(exit_exec, __LINE__) = xp::make_on_exit([&]() { code; })
 
 #endif
