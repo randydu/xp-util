@@ -1,9 +1,9 @@
 [wrap-git]
 
 directory = xputil
-url=https://e7gg7@api-f098ca248e490150a3fefdb3f5e84178.appoku.sandcats.io/randydu/xputil-lite.git
-revision = v2.0.2
+url=https://github.com/randydu/xp-util.git
+revision = v2.0.3
 clone-recursive = false
 
 [provide]
-xputil = xputil_lite_dep
+xputil = xputil_dep
