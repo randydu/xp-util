@@ -6,7 +6,7 @@ catch2_dep = dependency('catch2')
 catch2_ex_dep = dependency('catch2-ex')
 
 xputil_test = executable('xputil-test', srcs, 
-    dependencies: [catch2_dep, catch2_ex_dep, xputil_lite_dep],
+    dependencies: [catch2_dep, catch2_ex_dep, xputil_dep],
 )
 
 test('xputil-test', xputil_test)
