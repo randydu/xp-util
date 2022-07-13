@@ -101,7 +101,7 @@ private:
 };
 
 template <typename T, typename... TArgs>
-IRefObj* make_ref(TArgs&&... args)
+auto make_ref(TArgs&&... args)
 {
     static_assert(std::is_base_of_v<IRefObj, T>);
     return new TRefObj<T>(std::forward<TArgs>(args)...);
@@ -206,7 +206,7 @@ private:
 };
 
 template <typename T, typename... TArgs>
-T* make_intf(TArgs&&... args)
+auto make_intf(TArgs&&... args)
 {
     static_assert(std::is_base_of_v<IInterface, T>);
 
@@ -325,7 +325,7 @@ private:
 };
 
 template <typename T, typename... TArgs>
-T* make_intfx(TArgs&&... args)
+auto make_intfx(TArgs&&... args)
 {
     static_assert(std::is_base_of_v<IInterfaceEx, T>);
 

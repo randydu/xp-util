@@ -165,9 +165,18 @@ TEST_CASE("refobj", tag)
             int age_;
         };
 
-        xp::auto_ref pl = new xp::TRefObj<People>("Randy", 35);
-        CHECK(pl->name() == "Randy");
-        CHECK(pl->age() == 35);
+        SECTION("new")
+        {
+            xp::auto_ref pl = new xp::TRefObj<People>("Randy", 35);
+            CHECK(pl->name() == "Randy");
+            CHECK(pl->age() == 35);
+        }
+        SECTION("make_ref<>")
+        {
+            xp::auto_ref pl = xp::make_ref<People>("Randy", 35);
+            CHECK(pl->name() == "Randy");
+            CHECK(pl->age() == 35);
+        }
     }
 
     CHECK(Dummy::count == 0);
@@ -218,9 +227,18 @@ TEST_CASE("interface", tag)
             int age_;
         };
 
-        xp::auto_ref pl = new xp::TInterface<People>("Randy", 35);
-        CHECK(pl->name() == "Randy");
-        CHECK(pl->age() == 35);
+        SECTION("new")
+        {
+            xp::auto_ref pl = new xp::TInterface<People>("Randy", 35);
+            CHECK(pl->name() == "Randy");
+            CHECK(pl->age() == 35);
+        }
+        SECTION("make_intf")
+        {
+            xp::auto_ref pl = xp::make_intf<People>("Randy", 35);
+            CHECK(pl->name() == "Randy");
+            CHECK(pl->age() == 35);
+        }
     }
 
     CHECK(IDummy::count == 0);
@@ -381,8 +399,8 @@ TEST_CASE("bus", tag)
 
         SECTION("valid augument")
         {
-            //invalid due to gsl::not_null
-            //CHECK_FALSE(bus->connect(nullptr));
+            // invalid due to gsl::not_null
+            // CHECK_FALSE(bus->connect(nullptr));
         }
 
         SECTION("disconnect")
