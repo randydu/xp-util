@@ -512,6 +512,7 @@ In the module's implementation units, we implements interfaces in different inte
 #include <xputil/impl_intfs.h>
 #include "module_service.h"
 
+//one interface object with one interface
 class Impl_Bark: public xp::TInterfaceEx<IBark> {
 public:
     void bark() overload {}
@@ -520,6 +521,10 @@ public:
 class Impl_Run: public xp::TInterfaceEx<IRun> {
 public:
     void run() overload {}
+};
+//one interface object with multiple interfaces
+class MultiFeatures: public xp::TInterfaceBaseEx<IFeature1, IFeature2, ...> {
+  ...
 };
 
 xp::auto_ref bus;
@@ -530,6 +535,7 @@ IInterface* get_module_service(){
     //publish all interface objects implemeneted in this module.
     bus->connect(new Impl_Bark()); 
     bus->connect(new Impl_Run());
+    bus->connect(new MultiFeatures());
 
     return bus.get();
 }
@@ -543,6 +549,9 @@ As usual, the client code does not need to make any change, simply query an inte
 
 xp::auto_ref<IBark> p = get_module_service();
 p->bark();
+// interface hopping (IBark => IFeature1)
+xp::auto_ref<IFeature1> feature1 = p;
+feature1->f1();
 ```
 
 ![interfaces on bus](./doc/intf_bus.svg)
@@ -552,11 +561,217 @@ Once connected via bus, all interfaces supported by each interface objects are v
 It is also very important that an IBus interface is derived from IInterfaceEx, so a bus can be connected to another bus, as a result all interfaces connected on each bus are virtually merged into a big network.
 
 
-
 ##### Interface Accessibility
+
+In a project with multiple interfaces, not all interfaces should have the same visibility, they can be partitioned into different groups and the accessibility of each group can be restricted, that's why the concept of "bus level" is introduced in _xputil_:
+
+_Bus Level_ is a rank value of a bus. It is an integer number assigned to a bus when it is initialized:
+
+```c++
+xp::auto_ref<IBus> bus(new TBus(2)); //bus-level = 2
+```
+Bus Rules:
+
+1. Bus with _small_ bus level has _more_ security, _higher_ priviledge and _wider_ visibility.
+
+![multi-bus](./doc/multi-bus.svg)
+2. Bus with _equal_ bus level are _siblings_ and have the same security level, same visibility.
+
+![sibling buses](./doc/sibling-bus.svg)
+
+All interfaces on sibling buses are interconnected, one interface can hop to another with no restriction.
+
+Notes on the connection api:
+
+```c++
+auto_ref<IBus> bus_0 = new TBus(0);
+auto_ref<IBus> bus_1a = new TBus(1);
+auto_ref<IBus> bus_1b = new TBus(1);
+
+bool ok = bus_0->connect(bus_1); //OK
+assert(ok);
+
+ok = bus_1a->connect(bus_0); //BAD, input bus must have equal or high rank level.
+assert(!ok);
+
+ok = bus_1a->connect(bus_1b); //OK, sibling connection is allowed
+assert(ok);
+```
+
 ##### Interface Extensibility
 
+Once an interface is published as a part of the product deployed to the customers, its api protocol must be frozen, all non-backward compatible improvements and new apis must be added to an interface with a new IID:
+
+```c++
+//first version #1
+struct IBark_v1: public xp::IInterface {
+    DECLARE_IID("myapp.IBark.1");
+    virtual void bark() = 0;
+};
+
+//implementation
+class Dog: public xp::TInterfaceExBase<IBark_v1> {
+public:
+    void bark() overload {...}
+};
+
+//publish
+bus->connect(new Dog());
+```
+
+After the v1 is released, you add a new api to control the volume:
+```c++
+//second version #2
+struct IBark_v2: public IBark_v1 {
+    DECLARE_IID("myapp.IBark.2");
+    virtual void set_volume(int volume) = 0;
+};
+//implementation
+class Dog_v2: public xp::TInterfaceExBase<IBark_v2, IBark_v1> {
+public:
+    void bark() overload {...}
+    void set_volume(int volume){...}
+};
+
+//publish
+bus->connect(new Dog_v2()); //supports v1 and v2.
+```
+And after v2 is released, you decide to merge the existing apis into one:
+
+```c++
+//version #3
+struct IBark_v3: public xp::IInterface {
+    DECLARE_IID("myapp.IBark.3");
+    virtual void bark_with_volume(int volume) = 0;
+};
+//implementation
+class Dog_v3: public xp::TInterfaceExBase<IBark_v3> {
+public:
+    void bark_with_volume(int volume){...}
+};
+
+//publish
+bus->connect(new Dog_v2()); //supports v1 and v2.
+bus->connect(new Dog_v3()); //supports v3
+```
+
+On the client side, the old client still work fine with IBark::v1:
+```c++
+auto_ref<IBark_v1> p = get_service();
+p->bark();
+```
+
+New clients can with with multiple versions of plugins:
+```c++
+bool try_bark(IInterface* srv)
+{
+    { //first try latest version 3.
+        auto_ref<IBark_v3> p = srv;
+        if(p) {
+            p->bark_with_volume(80);
+            return true;
+        }
+    }
+    { //then try latest version 2.
+        auto_ref<IBark_v2> p = srv;
+        if(p) {
+            p->set_volume(80);
+            p->bark();
+            return true;
+        }
+    }
+    { //last try the first version
+        auto_ref<IBark_v1> p = srv;
+        if(p) {
+            p->bark();
+            return true;
+        }
+    }
+    TRACE("IBark interface not found!");
+    return false;
+}
+```
+As you can see, the interface programming can help partition complex project into many small maintainable sub-modules, each of the submodule can be developed and upgraded without breaking existing codes.
+
+#### Plugin Design Pattern
+
+The interface programming can be a great choice for a software project with many extensible plugins.
+
+In the main module (the main executable of the application), we can develop core features in bus level-0:
+
+```c++
+auto_ref<IBus> bus_core = new TBus(0);
+
+bus_core->connect(new core_feature_1());
+bus_core->connect(new core_feature_2());
+bus_core->connect(new core_feature_3());
+```
+
+A second bus with level-1 is created to hosting interfaces provided by plugins:
+```c++
+auto_ref<IBus> bus_user = new TBus(1);
+//optionally connect to bus-core so we can access all plugin interfaces from main module.
+bus_core->connect(bus_user);
+```
+
+Optionally, the third bus with level-2 can be created to provide common utilities for all plugins:
+```c++
+// publish common utilities for all plugins
+auto_ref<IBus> bus_util = new TBus(2);
+bus_util->connect(new plugin_util_x());
+bus_util->connect(new plugin_util_y());
+bus_util->connect(new plugin_util_z());
+
+bus_user->connect(bus_util);
+```
 
 
+All app plugins must have an entry point api:
+```c++
+using plugin_entry_t = int (*)(IBus* bus);
+```
+
+Basically it accepts an IBus* parameter and returns an error code.
+
+A typical plugin entry looks like:
+
+```c++
+xp::auto_ref<IPlugin_util_x> util_x;
+
+int plugin_entry(IBus* bus)
+{
+    util_x = bus; //extract utilities from main module
+    if(!x) return -1; //too bad, utility-x not resolved, abort.
+
+    //publish my own services
+    bus->connect(new my_service_a());
+    bus->connect(new my_service_b());
+    bus->connect(new my_service_c());
+    
+    return 0; //success
+}
+```
+
+When app launching, it searchs the plugin directories and tries to load and initialize a plugin by calling its plugin-entry api:
+
+```c++
+for_each(module: modules){
+    if(!module.plugin_entry(bus_user)){
+        TRACE("module initialize success!");
+    }
+}
+```
+
+In this plugin design, the main system uses bus-user (level-2) to connect external interfaces from plugins, so that the kernel interfaces (on bus-core) are not accessible by plugins, but the common utilities can be shared by all plugins, a plugin can extract needed utility interfaces from bus-user, and publish its own interfaces on bus-user. The only public api needed is the _plugin_entry_ function.
 
 #### ABI Compability
+
+Because the c++ interface is declared as pure c++ class, the __VTable__ layout and binary compatibility of different compilers are not guaranteed. For GCC, the ABI compatibility between different versions is great because it saves the source order of virtual functions in VTable. For MSVC, the V-Table layout is different from GCC at the binary level, so for best ABI compatibility, please do not mix binaries compiled by different compilers in a project deployment, it does not work. Always use the same compiler (GCC, MSVC, Clang, etc.) to build all modules.
+
+#### COM Compability
+
+Adapter class can be developed to convert COM interface as a C++ interface. 
+#### Delphi Interface Compability
+
+Delphi has its own interface, adapter classes are developed to convert delphi interface object as c++ interface object, and vice versa.
+
