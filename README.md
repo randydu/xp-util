@@ -28,7 +28,7 @@ get_data(conn, params,...);
 
 ```
 
-Another example if multi-stage-object-initialization. 
+Another example is multi-stage-object-initialization. 
 
 Assuming a complex c++ object with multiple resources will be created, we only want to return a valid instance to our api caller with all needed resources properly initialized. No resource leakage is allowed during the phrase of resources initialization.
 
@@ -280,7 +280,7 @@ However, in the multiple modules software, the API design must be very careful t
 
 ![Multiple Module Object: Bad](./doc/multi-mod.svg)
 
-The resource is allocated in module-A but try to be released in module-B, which is unsafe because a c++ object can be managed in a customized memory pool or heap, the two software modules are compiled binaries that might not share the same process heap. In some OS different threads might have different heap, In Windows you can also allocate object in different heaps, since Module-B has no control of the runtime context of module-A, the across-boundary c++ object release does not make sense and will most likely cause unexpected behavior!
+The resource is allocated in module-A but try to be released in module-B, which is unsafe because a c++ object can be managed in a customized memory pool or heap, the two software modules are compiled binaries that might not share the same process heap. In some OS different threads might have different heap, On Symbian, for example, each thread comes with its own heap. In Windows you can also allocate object in different heaps, since Module-B has no control of the runtime context of module-A, the across-boundary c++ object release does not make any sense and will most likely cause unexpected behavior!
 
 To fix the issue, we must make sure a c++ object must be managed by the same module (runtime context), so at the API layer both object create and object release functions must be provided for public access by external modules:
 
@@ -321,7 +321,7 @@ IBark* create_bark(){
 ```
 
 
-On the client side (module-B), we can call the module-a's api for an IBark interface object:
+On the client side (module-B), we can call the module-a's api to retrieve an IBark interface object:
 
 ```c++
 #include <module_a/intf_bark.h>
@@ -332,13 +332,231 @@ void func() {
 }
 ```
 
-The __xp::auto_ref<T>__ helper class is a RAII wrapper to increate / decrease automatically the reference count of an interface object, the lifetime of an interface object is fully managed in the runtime context of its source module (module-a), the potential resource leakage and cross-boundary c++ object destruction issue are resolved gracefully. 
+The __xp::auto_ref<T>__ helper class is a RAII wrapper to increase / decrease the reference count of an interface object automatically on the client side, the lifetime of an interface object is fully managed in the runtime context of its source module, as a result the potential resource leakage and cross-boundary c++ object destruction issue are resolved gracefully. 
 
 
 #### Interface Publish and Discovery
 
+In the previous section we talk about the basics of interface programming and how to safely implement a c++ interface object in a multi-modules project. 
+
+For a large project, there can be many interfaces implemented by different plugins or submodules, we have to figure out a systematic way to manage all of the active interfaces efficiently.
+
+1. Publish: An interface object can be published both at compiling time and at run-time; 
+  You can register built-in interface objects in the source code, or register the interface objects implemented by any external plugins at runtime.
+2. Discover: An active interface object can be easily discovered and used by other software modules;
+  An interface registered in the system can be resolved at runtime on demand. 
+3. Accessibility: An interface can only be seen and accessed by some submodules;
+  The low-level apis implementing kernel features should not be visible to the high-level software modules for security reason. The interfaces
+  must be grouped with different security ranks.
+4. Extensibility: Interface can be replaced or upgraded with zero or minimum code change on the client modules.
+
+The design of _XP-UTIL_ has provided solutions for all of the requirements.
+
+##### Interface Publish
+
+
+To make a public interface discoverable we must assign an unique id to it:
+
+```c++
+#include <xputil/intf_defs.h>
+
+struct IBark: public xp::IInterface {
+    DECLARE_IID("myapp.IBark.1");
+    virtual void bark() = 0;
+};
+
+struct IRun: public xp::IInterface {
+    DECLARE_IID("myapp.IRun.1");
+    virtual void run() = 0;
+};
+```
+
+By inheriting a new interface from xp::IInterface, the interface class can be assigned an unique string id using the macro __DECLARE_IID__:
+
+```c++
+DECLARE_IID(any_unique_string);
+```
+The interface IID can be __any__ string unique to your application, in the above example, the iid name pattern is: 
+```
+ {app_name}.{interface_name}.{interface_version}
+```
+Actually it is also perfect to use a GUID like this:
+
+```
+DECLARE_IID("b8cfad5f-a072-4a7c-8ce7-a8086702c068");
+```
+
+The interface unique id can be retrieved by macro "IID":
+
+```c++
+assert( IID(IBark) == "myapp.IBark.1");
+```
+
+An publishable objects with multiple interfaces can be implemented as follows:
+
+```c++
+#include <xputil/impl_intfs.h>
+
+class Dog: public xp::TInterfaceBase<IBark, IRun>
+{
+public:
+    Dog(const char* name):name_(name){}
+    //IBark
+    void bark() overload {
+        printf("dog(%s) barks!", name_.c_str());
+    }
+    //IRun
+    void run() overload {
+        printf("dog(%s) run.", name_.c_str());
+    }
+private:
+    std::string name_;
+};
+
+auto dog = new Dog("Spike");
+```
+
+Given a dog interface object, you can query a specified interface as follows:
+
+```c++
+{ //obj => interface
+    xp::auto_ref<IBark> x = dog;
+    assert(x);
+    x->bark();
+}
+{ //obj => interface
+    xp::auto_ref<IRun> y = dog;
+    assert(y);
+    y->run();
+}
+{ //interface => interface
+    xp::auto_ref<IBark> x = dog;
+    //now we have a IBark interface, we can navigate to another interface
+    xp::auto_ref<IRun> y = x;
+    assert(y);
+}
+```
+![interface discovery](./doc/intf_discovery.svg)
+
+As you can see, all of the interfaces implemented by an interface object are inter-connected, interface navigation becomes so easy in xputil.
+If you are developing a software module with 10 features implemented in 10 different interfaces, instead of publishing 10 features in 10 public apis (the traditional way), you can simply publish one api:
+
+```c++
+// module_services.hpp
+struct IFeature1: public xp::IInterface {...};
+struct IFeature2: public xp::IInterface {...};
+...
+struct IFeature10: public xp::IInterface {...};
+
+IInterface* get_module_services();
+```
+Then the clients can query needed feature sets on demand in the same pattern:
+
+```c++
+#include <module_services.hpp>
+//client code
+xp::auto_ref feature_xxx = get_module_services();
+feature_xxx->do_whatever();
+```
+
+If a feature is not supported, you can fallback to another interface or just abort with an error message:
+```c++
+xp::auto_ref feature_8 = get_module_services();
+if(!feature_8){
+    std::cerr << "feature 8 not supported by the sub-module";
+    return -1;   
+}
+feature_8->do_whatever();
+```
+Basically the API management becomes quite simple for the module development, you have __one__ generic stable public api, the api clients won't break after the module upgrade as long as you keep the behavior of published interfaces untouched. 
+
+##### Interface Bus
+
+In the previous section we have explained how the interface object can simplify the public api of a software module, and the interfaces implemented by a single interface object are completely interconnected.
+
+However, for a project with many modules and multiple interfaces, you cannot implement all interfaces in a single interface object, you have to support subsets of interfaces with multiple interface objects, the interface of object A cannot navigate to interface of object B, and vice versa:
+
+![interface isolated](./doc/intf_isolated.svg)
+
+As a result we have some isolated interface islands left.
+
+To overcome the disconnection problem, xputil introduces the concept of __interface bus__.
+
+* Interface Bus (__IBus__): a special interface to connect, disconnect other interface objects;
+* Bus-aware Interface (__IInterfaceEx__): any interface object that can be connected to a bus must inherit from IInterfaceEx. 
+
+In module api header file, we declare all public interfaces and the one and only api function get_module_service() as usual:
+
+```c++
+//module_service.h
+#include <xputil/intf_defs.h>
+
+IInterface* get_module_service();
+
+// public interfaces
+struct IBark: public xp::IInterfaceEx {
+    DECLARE_IID("myapp.IBark.1");
+    virtual void bark() = 0;
+};
+
+struct IRun: public xp::IInterfaceEx {
+    DECLARE_IID("myapp.IRun.1");
+    virtual void run() = 0;
+};
+```
+
+In the module's implementation units, we implements interfaces in different interface objects:
+
+```c++
+//module_service.cpp
+#include <xputil/impl_intfs.h>
+#include "module_service.h"
+
+class Impl_Bark: public xp::TInterfaceEx<IBark> {
+public:
+    void bark() overload {}
+};
+
+class Impl_Run: public xp::TInterfaceEx<IRun> {
+public:
+    void run() overload {}
+};
+
+xp::auto_ref bus;
+
+IInterface* get_module_service(){
+    bus = new xp::TBus(0);
+
+    //publish all interface objects implemeneted in this module.
+    bus->connect(new Impl_Bark()); 
+    bus->connect(new Impl_Run());
+
+    return bus.get();
+}
+```
+
+As usual, the client code does not need to make any change, simply query an interface on demand:
+
+```c++
+//client code
+#include <module-a/module_service.h>
+
+xp::auto_ref<IBark> p = get_module_service();
+p->bark();
+```
+
+![interfaces on bus](./doc/intf_bus.svg)
+
+Once connected via bus, all interfaces supported by each interface objects are visible as if they are implemented by a single interface object.
+
+It is also very important that an IBus interface is derived from IInterfaceEx, so a bus can be connected to another bus, as a result all interfaces connected on each bus are virtually merged into a big network.
+
+
+
+##### Interface Accessibility
+##### Interface Extensibility
 
 
 
 
-#### Interchangablity
+#### ABI Compability
