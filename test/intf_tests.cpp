@@ -674,7 +674,7 @@ TEST_CASE("ref-issue", tag)
     SECTION("bus nav")
     {
         auto_ref<IBus> bus = new TBus(0);
-        bus->connect(new TInterfaceEx<Foo>());
+        (void)bus->connect(new TInterfaceEx<Foo>());
         CHECK(Foo::count == 1);
         CHECK(bus->count() == 1);
         {
@@ -1028,7 +1028,7 @@ TEST_CASE("TInterfaceExBase", tag)
         CHECK(a->count() == 1);
 
         xp::auto_ref bus = new xp::TBus(0);
-        bus->connect(a);
+        (void)bus->connect(a);
         CHECK(bus->supports(IID(IName)));
     }
 
@@ -1076,7 +1076,7 @@ TEST_CASE("TInterfaceExBase", tag)
         }
 
         xp::auto_ref bus = new xp::TBus(0);
-        bus->connect(merry);
+        (void)bus->connect(merry);
         CHECK(bus->supports(IID(IName)));
         CHECK(bus->supports(IID(IAge)));
     }
@@ -1140,7 +1140,7 @@ TEST_CASE("TInterfaceExBase", tag)
             CHECK(age->count() == 3);
         }
         xp::auto_ref bus = new xp::TBus(0);
-        bus->connect(merry);
+        (void)bus->connect(merry);
         CHECK(bus->supports(IID(IName)));
         CHECK(bus->supports(IID(IAge)));
         CHECK(bus->supports(IID(ISex)));

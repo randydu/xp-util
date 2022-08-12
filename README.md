@@ -4,7 +4,8 @@ This repository shares some c++ utility classes used in my own projects but can 
 
 ## Compatibility
 
-C++17
+* C++20 for MSVC
+* C++17 for GCC
 
 ## Install
 
