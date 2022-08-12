@@ -1,6 +1,7 @@
-#include "catch_macros.h"
-
 #include <xputil/impl_intfs.h>
+
+#define CATCH_CONFIG_MAIN
+#include "catch2.h"
 
 namespace {
 constexpr auto tag = "[intf]";
