@@ -145,7 +145,7 @@ struct IInterface : virtual public IRefObj {
     }
 
     template <typename T>
-    constexpr T* cast()
+    T* cast()
     {
         T* intf;
         if (this->queryInterface(IID(T), (void**)&intf) != xp_error_code::OK) {
