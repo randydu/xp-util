@@ -349,7 +349,7 @@ public:
     template <typename U>
     auto_ref(U from) : _intf{nullptr}
     {
-        if constexpr (std::is_base_of<T, std::remove_pointer_t<U>>::value) {
+        if constexpr (std::is_convertible_v<U, decltype(_intf)>) {
             _intf = from;
             if (_intf)
                 _intf->ref();

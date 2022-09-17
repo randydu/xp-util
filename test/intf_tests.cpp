@@ -39,7 +39,7 @@ struct IBaz : public xp::IInterfaceEx {
     std::string id() const { return "baz"; }
 
     IBaz() { count++; }
-    virtual ~IBaz() { count--; }
+    ~IBaz() override { count--; }
     static int count;
 };
 int IBaz::count = 0;
@@ -51,11 +51,11 @@ struct IFoo : public xp::IInterfaceEx {
 };
 
 struct Foo : IFoo {
-    virtual int foo() const override { return 1; };
-    virtual std::string id() const override { return "foo"; }
+    int foo() const override { return 1; };
+    std::string id() const override { return "foo"; }
 
     Foo() { count++; }
-    virtual ~Foo() { count--; }
+    ~Foo() override { count--; }
     static int count;
 };
 int Foo::count = 0;
@@ -67,11 +67,11 @@ struct IBar : public xp::IInterfaceEx {
 };
 
 struct Bar : IBar {
-    virtual int bar() const override { return 2; };
-    virtual std::string id() const override { return "bar"; }
+    int bar() const override { return 2; };
+    std::string id() const override { return "bar"; }
 
     Bar() { count++; }
-    virtual ~Bar() { count--; }
+    ~Bar() override { count--; }
     static int count;
 };
 int Bar::count{0};
@@ -83,24 +83,24 @@ struct IWoo : public xp::IInterfaceEx {
     virtual std::string id() const = 0;
 };
 struct Foobar : virtual IFoo, virtual IBar {
-    virtual int foo() const override { return 3; }
-    virtual int bar() const override { return 4; }
-    virtual std::string id() const override { return "foobar"; }
+    int foo() const override { return 3; }
+    int bar() const override { return 4; }
+    std::string id() const override { return "foobar"; }
 
     Foobar() { count++; }
-    virtual ~Foobar() { count--; }
+    ~Foobar() override { count--; }
     static int count;
 };
 int Foobar::count{0};
 
 struct Foobarwoo : virtual IFoo, virtual IBar, virtual IWoo {
-    virtual int foo() const override { return 5; }
-    virtual int bar() const override { return 6; }
-    virtual int woo() const override { return 7; }
-    virtual std::string id() const override { return "foobarwoo"; }
+    int foo() const override { return 5; }
+    int bar() const override { return 6; }
+    int woo() const override { return 7; }
+    std::string id() const override { return "foobarwoo"; }
 
     Foobarwoo() { count++; }
-    virtual ~Foobarwoo() { count--; }
+    ~Foobarwoo() override { count--; }
     static int count;
 };
 int Foobarwoo::count{0};
