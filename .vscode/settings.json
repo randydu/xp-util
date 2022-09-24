@@ -1,6 +1,8 @@
 {
     "files.associations": {
         "type_traits": "cpp",
-        "pointers": "cpp"
+        "pointers": "cpp",
+        "string_view": "cpp",
+        "variant": "cpp"
     }
 }

@@ -1,5 +1,5 @@
 srcs = [
-    'intf_tests.cpp', 'cls_util_tests.cpp',
+    'intf_tests.cpp', 'intf_id_tests.cpp', 'cls_util_tests.cpp',
 ]
 
 catch2_dep = dependency('catch2')
