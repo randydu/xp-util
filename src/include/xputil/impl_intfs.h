@@ -23,6 +23,11 @@
 #include <vector>
 #include <unordered_set>
 
+#if defined(_MSC_VER)
+//disable false positive warning C4250: inherits via dominance
+#pragma warning(disable: 4250)
+#endif
+
 namespace xp {
 
 namespace detail {

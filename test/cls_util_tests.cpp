@@ -1,6 +1,7 @@
-#include "catch_macros.h"
 #include <type_traits>
 #include <xputil/class_util.h>
+
+#include "catch2.h"
 
 const auto tag = "[cls]";
 

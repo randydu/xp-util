@@ -1,6 +1,7 @@
-#include "catch_macros.h"
-
 #include <xputil/impl_intfs.h>
+
+#define CATCH_CONFIG_MAIN
+#include "catch2.h"
 
 namespace {
 constexpr auto tag = "[intf]";
@@ -38,7 +39,7 @@ struct IBaz : public xp::IInterfaceEx {
     std::string id() const { return "baz"; }
 
     IBaz() { count++; }
-    virtual ~IBaz() { count--; }
+    ~IBaz() override { count--; }
     static int count;
 };
 int IBaz::count = 0;
@@ -50,11 +51,11 @@ struct IFoo : public xp::IInterfaceEx {
 };
 
 struct Foo : IFoo {
-    virtual int foo() const override { return 1; };
-    virtual std::string id() const override { return "foo"; }
+    int foo() const override { return 1; };
+    std::string id() const override { return "foo"; }
 
     Foo() { count++; }
-    virtual ~Foo() { count--; }
+    ~Foo() override { count--; }
     static int count;
 };
 int Foo::count = 0;
@@ -66,11 +67,11 @@ struct IBar : public xp::IInterfaceEx {
 };
 
 struct Bar : IBar {
-    virtual int bar() const override { return 2; };
-    virtual std::string id() const override { return "bar"; }
+    int bar() const override { return 2; };
+    std::string id() const override { return "bar"; }
 
     Bar() { count++; }
-    virtual ~Bar() { count--; }
+    ~Bar() override { count--; }
     static int count;
 };
 int Bar::count{0};
@@ -82,24 +83,24 @@ struct IWoo : public xp::IInterfaceEx {
     virtual std::string id() const = 0;
 };
 struct Foobar : virtual IFoo, virtual IBar {
-    virtual int foo() const override { return 3; }
-    virtual int bar() const override { return 4; }
-    virtual std::string id() const override { return "foobar"; }
+    int foo() const override { return 3; }
+    int bar() const override { return 4; }
+    std::string id() const override { return "foobar"; }
 
     Foobar() { count++; }
-    virtual ~Foobar() { count--; }
+    ~Foobar() override { count--; }
     static int count;
 };
 int Foobar::count{0};
 
 struct Foobarwoo : virtual IFoo, virtual IBar, virtual IWoo {
-    virtual int foo() const override { return 5; }
-    virtual int bar() const override { return 6; }
-    virtual int woo() const override { return 7; }
-    virtual std::string id() const override { return "foobarwoo"; }
+    int foo() const override { return 5; }
+    int bar() const override { return 6; }
+    int woo() const override { return 7; }
+    std::string id() const override { return "foobarwoo"; }
 
     Foobarwoo() { count++; }
-    virtual ~Foobarwoo() { count--; }
+    ~Foobarwoo() override { count--; }
     static int count;
 };
 int Foobarwoo::count{0};
@@ -674,7 +675,7 @@ TEST_CASE("ref-issue", tag)
     SECTION("bus nav")
     {
         auto_ref<IBus> bus = new TBus(0);
-        bus->connect(new TInterfaceEx<Foo>());
+        (void)bus->connect(new TInterfaceEx<Foo>());
         CHECK(Foo::count == 1);
         CHECK(bus->count() == 1);
         {
@@ -1028,7 +1029,7 @@ TEST_CASE("TInterfaceExBase", tag)
         CHECK(a->count() == 1);
 
         xp::auto_ref bus = new xp::TBus(0);
-        bus->connect(a);
+        (void)bus->connect(a);
         CHECK(bus->supports(IID(IName)));
     }
 
@@ -1076,7 +1077,7 @@ TEST_CASE("TInterfaceExBase", tag)
         }
 
         xp::auto_ref bus = new xp::TBus(0);
-        bus->connect(merry);
+        (void)bus->connect(merry);
         CHECK(bus->supports(IID(IName)));
         CHECK(bus->supports(IID(IAge)));
     }
@@ -1140,7 +1141,7 @@ TEST_CASE("TInterfaceExBase", tag)
             CHECK(age->count() == 3);
         }
         xp::auto_ref bus = new xp::TBus(0);
-        bus->connect(merry);
+        (void)bus->connect(merry);
         CHECK(bus->supports(IID(IName)));
         CHECK(bus->supports(IID(IAge)));
         CHECK(bus->supports(IID(ISex)));
