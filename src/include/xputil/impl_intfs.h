@@ -24,8 +24,8 @@
 #include <unordered_set>
 
 #if defined(_MSC_VER)
-//disable false positive warning C4250: inherits via dominance
-#pragma warning(disable: 4250)
+// disable false positive warning C4250: inherits via dominance
+#pragma warning(disable : 4250)
 #endif
 
 namespace xp {
@@ -627,19 +627,165 @@ public:
     int total_siblings() const { return _siblings.size(); }
 
     // IBus
-    [[nodiscard]] bool connect(gsl::not_null<IInterfaceEx*> intf, int order = 0) override;
-    void disconnect(gsl::not_null<IInterfaceEx*> intf) override;
+    [[nodiscard]] bool connect(gsl::not_null<IInterfaceEx*> intf, int order = 0) override
+    {
+        Expects(!this->finished());
+
+        if (intf == this) return false; // no loop-back.
+
+
+        IBus* bus;
+        detail::QueryState qst;
+        if (intf->queryInterfaceEx(IID_IBUS, (void**)&bus, qst) == xp_error_code::OK) {
+            ON_EXIT(bus->unref();); // balance queryInterface
+
+            const int level = bus->level();
+            if (level > _level) {
+                // do not allow duplicated buses
+                if (auto it = std::find(_buses.begin(), _buses.end(), bus); it != _buses.end())
+                    return false;
+
+                // strong reference only for different level.
+                bus->ref();
+                _buses.push_back(bus);
+
+                std::sort(_buses.begin(), _buses.end(), [](auto x, auto y) { return x->level() < y->level(); });
+                return true;
+            }
+
+            if (level == _level) {
+                if (bus->count() == 1) {
+                    // sibing bus is not referenced outside.
+                    //
+                    // Because we only keep a weak reference to a sibling bus, which will be destroyed if there is no external
+                    // reference lock.
+                    // ex:  bus0->connect(new TBus(0));
+                    //
+                    // we could unrefNoDelete it to keep it alive after return, but it might lead to memory leakge if it is not
+                    // referenced later.
+                    // so we can avoid this kind of usage before bad things happens.
+                    return false;
+                }
+
+                // no loop-back
+                if (bus == this)
+                    return false;
+
+                // do not allow duplicated buses
+                if (auto it = std::find(_siblings.begin(), _siblings.end(), bus); it != _siblings.end())
+                    return false;
+
+                // weak reference only for sibling bus to avoid reference deadlock, remove when being destroyed.
+                _siblings.insert(bus);
+                // sibling bus, mutual connection
+                bus->addSiblingBus(this);
+
+                return true;
+            }
+
+            // bus level smaller than mine, connection failure.
+            return false;
+        }
+
+        // no duplicated interfaces
+        if (auto it = std::find_if(_intfs.begin(), _intfs.end(), [intf](const auto& x) { return x.second == intf; }); it != _intfs.end())
+            return false;
+
+        intf->ref();
+        _intfs.emplace_back(order, intf);
+        intf->setBus(this);
+        return true;
+    }
+
+    void disconnect(gsl::not_null<IInterfaceEx*> intf) override
+    {
+        Expects(!this->finished());
+
+        // interfaces first
+        if (auto it = std::find_if(_intfs.begin(), _intfs.end(), [intf](const auto& x) { return x.second == intf; }); it != _intfs.end()) {
+            _intfs.erase(it);
+            intf->setBus(nullptr);
+            intf->unref();
+            return;
+        }
+        // buses later
+        if (auto it = find(_buses.begin(), _buses.end(), intf); it != _buses.end()) {
+            _buses.erase(it);
+            intf->unref();
+            return;
+        }
+
+        removeSiblingBus(static_cast<IBus*>(intf.get()));
+    }
 
     int level() const override
     {
         return _level;
     }
-    IBus* findFirstBusByLevel(int busLevel) const override;
+    IBus* findFirstBusByLevel(int busLevel) const override
+    {
+        Expects(!this->finished());
 
-    void addSiblingBus(gsl::not_null<IBus*> bus) override;
-    void removeSiblingBus(gsl::not_null<IBus*> bus) override;
+        if (busLevel < _level)
+            return nullptr;
 
-    xp_error_code queryInterfaceEx(TIntfId iid, void** retIntf, IQueryState& qst) override;
+        if (_level == busLevel)
+            return (IBus*)this;
+
+        for (auto bus : _buses) {
+            if (auto p = bus->findFirstBusByLevel(busLevel); p) return p;
+        }
+
+        for (auto bus : _siblings) {
+            if (auto p = bus->findFirstBusByLevel(busLevel); p) return p;
+        }
+
+        return nullptr;
+    }
+
+
+    void addSiblingBus(gsl::not_null<IBus*> bus) override
+    {
+        Expects(!this->finished());
+
+        _siblings.insert(bus);
+    }
+
+    void removeSiblingBus(gsl::not_null<IBus*> bus) override
+    {
+        Expects(!this->finished());
+
+        _siblings.erase(bus);
+    }
+
+    xp_error_code queryInterfaceEx(TIntfId iid, void** retIntf, IQueryState& qst) override
+    {
+        Expects(retIntf);
+        *retIntf = nullptr;
+
+        if (equalIID(iid, IID_IBUS) || equalIID(iid, IID_IINTERFACEEX) || equalIID(iid, IID_IINTERFACE)) {
+            *retIntf = (IInterfaceEx*)(this);
+            this->ref();
+            return xp_error_code::OK;
+        }
+
+        qst.addSearched(this);
+
+        // scanning interfaces in my slots
+        for (auto [_, intf] : _intfs) {
+            if (resolve(intf, iid, retIntf, qst) == xp_error_code::OK) return xp_error_code::OK;
+        }
+        // scan sibling buses
+        for (auto bus : _siblings) {
+            if (resolve(bus, iid, retIntf, qst) == xp_error_code::OK) return xp_error_code::OK;
+        }
+        // scanning connected upper-level/less-secure buses
+        for (auto bus : _buses) {
+            if (resolve(bus, iid, retIntf, qst) == xp_error_code::OK) return xp_error_code::OK;
+        }
+
+        return xp_error_code::INTF_NOT_RESOLVED;
+    }
 
 protected:
     ~TBus() override
@@ -659,7 +805,42 @@ private:
         reset();
     }
 
-    void reset();
+    void reset()
+    {
+        Expects(!this->finished());
+
+        for (auto p : _siblings) {
+            p->removeSiblingBus(this);
+            // sibling bus not affected by my clearance.
+            // p->finish();
+        }
+        _siblings.clear();
+
+        // explicitly pass-ordered resource release
+        // for the same pass, the later installed interface is released first.
+        constexpr int max_clear_pass = 3;
+        for (int pass = 0; pass < max_clear_pass; pass++) {
+            for (auto it = _intfs.rbegin(); it != _intfs.rend(); ++it) {
+                auto [order, intf] = *it;
+                if (pass == order) {
+                    intf->finish();
+                }
+            }
+        }
+        for (auto [_, intf] : _intfs) {
+            intf->setBus(nullptr);
+            intf->unref();
+        }
+        _intfs.clear();
+
+        for (std::vector<IBus*>::reverse_iterator it = _buses.rbegin(); it != _buses.rend(); ++it) {
+            IBus* bus = *it;
+            bus->finish();
+            bus->setBus(nullptr);
+            bus->unref();
+        }
+        _buses.clear();
+    }
 };
 
 } // namespace xp

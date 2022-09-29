@@ -1,17 +1,21 @@
-add_library(xputil)
+add_library(xputil INTERFACE)
 
-# GSL is installed to /usr/local/include by macports.
-target_include_directories(xputil PUBLIC ${CMAKE_CURRENT_LIST_DIR}/include /usr/local/include)
+add_subdirectory(include)
 
-target_sources(xputil
-    PRIVATE
-    ${CMAKE_CURRENT_LIST_DIR}/impl_intfs.cpp
+### Install
 
-    PUBLIC
-    ${CMAKE_CURRENT_LIST_DIR}/include/xputil/class_attr.h
-    ${CMAKE_CURRENT_LIST_DIR}/include/xputil/on_exit.h
-    ${CMAKE_CURRENT_LIST_DIR}/include/xputil/intf_defs.h
-    ${CMAKE_CURRENT_LIST_DIR}/include/xputil/impl_intfs.h
+install(
+    TARGETS xputil
+    EXPORT xputilConfig
 )
 
-# target_link_libraries(xputil)
+install(
+    DIRECTORY include/xputil
+    DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
+)
+
+# Export
+install(
+    EXPORT xputilConfig
+    DESTINATION lib/xputil
+)

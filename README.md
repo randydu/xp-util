@@ -1,4 +1,4 @@
-# Cross-Platform Utility Library (XP-UTIL)
+# Cross-Platform Header-Only Utility Library (XP-UTIL)
 
 This repository shares some c++ utility classes used in my own projects but can also be useful for other people to develop c++ applications on Windows, Linux and Mac.
 

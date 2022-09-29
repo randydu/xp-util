@@ -8,10 +8,17 @@ include(GNUInstallDirs)
 project(xputil 
     VERSION 2.1 
     DESCRIPTION "cross platform utility library"
-    LANGUAGES CXX)
+    LANGUAGES CXX
+)
 
-# Microsoft.GSL should be installed
-# list(APPEND CMAKE_PREFIX_PATH "/usr/local/share/cmake/Microsoft.GSL")
-# find_package(Microsoft.GSL REQUIRED)
+find_package(Microsoft.GSL)
 
 add_subdirectory(src)
+
+### Options
+option(XPUTIL_TEST "Build unit tests" NO)
+
+
+if (XPUTIL_TEST)
+    add_subdirectory(test)
+endif()

@@ -220,7 +220,13 @@ struct IInterfaceEx : public IInterface {
  * @param qst current query helper
  * @return xp_error_code
  */
-xp_error_code resolve(gsl::not_null<IInterfaceEx*> pex, TIntfId iid, void** retIntf, IQueryState& qst);
+inline xp_error_code resolve(gsl::not_null<IInterfaceEx*> pex, TIntfId iid, void** retIntf, IQueryState& qst)
+{
+    if (!qst.isSearched(pex)) {
+        return pex->queryInterfaceEx(iid, retIntf, qst);
+    }
+    return xp_error_code::INTF_NOT_RESOLVED;
+}
 
 /**
  * \interface IBus
