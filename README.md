@@ -1,4 +1,4 @@
-# Cross-Platform Utility Library (XP-UTIL)
+# Cross-Platform Header-Only Utility Library (XP-UTIL)
 
 This repository shares some c++ utility classes used in my own projects but can also be useful for other people to develop c++ applications on Windows, Linux and Mac.
 
@@ -171,8 +171,8 @@ The ON_EXIT() will greatly improve the code readibility, because whenever a reso
 References:
 
 
-[C.41: A constructor should create a fully initialized object](http://isocpp.github.io/CppCoreGuidelines/CppCoreGuidelines#c41-a-constructor-should-create-a-fully-initialized-object);
-[R.1: Manage resources automatically using resource handles and RAII (Resource Acquisition Is Initialization)](http://isocpp.github.io/CppCoreGuidelines/CppCoreGuidelines#r1-manage-resources-automatically-using-resource-handles-and-raii-resource-acquisition-is-initialization);
+- [C.41: A constructor should create a fully initialized object](http://isocpp.github.io/CppCoreGuidelines/CppCoreGuidelines#c41-a-constructor-should-create-a-fully-initialized-object);
+- [R.1: Manage resources automatically using resource handles and RAII (Resource Acquisition Is Initialization)](http://isocpp.github.io/CppCoreGuidelines/CppCoreGuidelines#r1-manage-resources-automatically-using-resource-handles-and-raii-resource-acquisition-is-initialization);
 
 ### INTERFACE PROGRAMMING
 
