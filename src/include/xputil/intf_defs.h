@@ -349,12 +349,14 @@ public:
     template <typename U>
     auto_ref(U from) : _intf{nullptr}
     {
-        if constexpr (std::is_convertible_v<U, decltype(_intf)>) {
+        if constexpr (std::is_same_v<U, nullptr_t>) {
+            // void
+        } else if constexpr (std::is_base_of<T, std::remove_pointer_t<U>>::value) {
             _intf = from;
             if (_intf)
                 _intf->ref();
         } else {
-            from->queryInterface(IID(T), (void**)&_intf);
+            if (from != nullptr) from->queryInterface(IID(T), (void**)&_intf);
         }
     }
 

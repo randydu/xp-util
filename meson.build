@@ -1,4 +1,4 @@
-project('xputil', 'cpp', default_options: ['cpp_std=c++20', 'werror=true'], version: '2.1.0')
+project('xputil', 'cpp', default_options: ['cpp_std=c++20', 'werror=true'], version: '2.1.1')
 
 # stop after 1 errors
 
