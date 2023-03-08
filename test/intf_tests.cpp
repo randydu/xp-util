@@ -6,6 +6,7 @@
 namespace {
 constexpr auto tag = "[intf]";
 
+
 struct Dummy : public xp::IRefObj {
     Dummy() { count++; }
     ~Dummy() { count--; }
@@ -812,6 +813,24 @@ TEST_CASE("autoref", tag)
 {
     xp::auto_ref foo = new xp::TInterfaceEx<Foo>();
     CHECK(foo->count() == 1);
+
+    SECTION("null")
+    {
+        {
+            // constructor
+            xp::auto_ref<Foo> dummy(nullptr);
+            CHECK(!dummy);
+        }
+
+        {
+            // copy
+            xp::auto_ref<Foo> dummy;
+            CHECK(!dummy);
+
+            dummy = nullptr;
+            CHECK(!dummy);
+        }
+    }
 
     SECTION("copy")
     {

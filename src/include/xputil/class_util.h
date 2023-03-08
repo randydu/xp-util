@@ -53,25 +53,25 @@ constexpr bool is_callable()
 //--------------------- Deduce variadic template argument -----------------------
 namespace detail {
 template <typename T, typename... R>
-struct first_type
-{
+struct first_type {
     using type = T;
 };
 template <typename T1, typename T2, typename... R>
-struct second_type
-{
+struct second_type {
     using type = T2;
 };
 template <typename T1, typename T2, typename T3, typename... R>
-struct third_type
-{
+struct third_type {
     using type = T3;
 };
 } // namespace detail
 
-template<typename... T> using first_type_t = typename detail::first_type<T...>::type;
-template<typename... T> using second_type_t = typename detail::second_type<T...>::type;
-template<typename... T> using third_type_t = typename detail::second_type<T...>::type;
+template <typename... T>
+using first_type_t = typename detail::first_type<T...>::type;
+template <typename... T>
+using second_type_t = typename detail::second_type<T...>::type;
+template <typename... T>
+using third_type_t = typename detail::second_type<T...>::type;
 
 } // namespace xp
 

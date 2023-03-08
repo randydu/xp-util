@@ -6,7 +6,7 @@
 TEST_CASE("intf-id-test", "[intf_id]")
 {
     using namespace xp;
-    
+
     CHECK(CALC_IID("") == 0x553e93901e462a6e);
     CHECK(CALC_IID(" ") == 0xf8e5e1651bd01df3);
     CHECK(IID_IINTERFACE == 0xdc1bb37e5ceab0cb);

@@ -19,7 +19,7 @@ public:
 
     int add(int) { return 0; }
     int inc() { return 0; }
-    void dec(int&, void*) { }
+    void dec(int&, void*) {}
 };
 
 
