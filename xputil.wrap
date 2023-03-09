@@ -2,7 +2,7 @@
 
 directory = xputil
 url=https://github.com/randydu/xp-util.git
-revision = v2.1.1
+revision = v2.2.0
 clone-recursive = false
 
 [provide]

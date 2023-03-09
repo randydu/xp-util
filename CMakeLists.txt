@@ -6,7 +6,7 @@ set (CXX_STANDARD_REQUIRED YES)
 include(GNUInstallDirs)
 
 project(xputil 
-    VERSION 2.1 
+    VERSION 2.2 
     DESCRIPTION "cross platform utility library"
     LANGUAGES CXX
 )
@@ -16,9 +16,9 @@ find_package(Microsoft.GSL)
 add_subdirectory(src)
 
 ### Options
-option(XPUTIL_TEST "Build unit tests" NO)
+option(XPUTIL_BUILD_TESTS "Build unit tests" NO)
 
 
-if (XPUTIL_TEST)
+if (XPUTIL_BUILD_TESTS)
     add_subdirectory(test)
 endif()
