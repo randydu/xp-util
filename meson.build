@@ -19,4 +19,7 @@ endif
 gsl_dep = dependency('gsl')
 
 subdir('src')
-subdir('test')
+
+if get_option('XPUTIL_BUILD_TESTS')
+    subdir('test')
+endif
