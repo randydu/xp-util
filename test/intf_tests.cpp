@@ -1175,3 +1175,42 @@ TEST_CASE("TInterfaceExBase", tag)
         }
     }
 }
+
+TEST_CASE("auto_ref<> vector", tag)
+{
+    std::vector<xp::auto_ref<IFoo>> v1;
+    v1.push_back(xp::make_intfx<Foo>());
+    CHECK(v1.size() == 1);
+    SECTION("copy constructor")
+    {
+        std::vector<xp::auto_ref<IFoo>> v2(v1);
+        CHECK(v1.size() == 1);
+        CHECK(v2.size() == 1);
+        CHECK(v1[0].get() == v2[0].get());
+        CHECK(v1[0]->count() == 2); // hold by both containers
+    }
+    SECTION("copy operator")
+    {
+        std::vector<xp::auto_ref<IFoo>> v2;
+        v2 = v1;
+        CHECK(v1.size() == 1);
+        CHECK(v2.size() == 1);
+        CHECK(v1[0].get() == v2[0].get());
+        CHECK(v1[0]->count() == 2); // hold by both containers
+    }
+    SECTION("move constructor")
+    {
+        std::vector<xp::auto_ref<IFoo>> v2(std::move(v1));
+        CHECK(v1.size() == 0);
+        CHECK(v2.size() == 1);
+        CHECK(v2[0]->count() == 1); // hold by v2 only
+    }
+    SECTION("move operator")
+    {
+        std::vector<xp::auto_ref<IFoo>> v2;
+        v2 = std::move(v1);
+        CHECK(v1.size() == 0);
+        CHECK(v2.size() == 1);
+        CHECK(v2[0]->count() == 1); // hold by v2 only
+    }
+}
