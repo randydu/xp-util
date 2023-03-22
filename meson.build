@@ -1,6 +1,4 @@
-project('xputil', 'cpp', default_options: ['cpp_std=c++20', 'werror=true'], version: '2.2.0')
-
-# stop after 1 errors
+project('xputil', 'cpp', default_options: ['cpp_std=c++20', 'werror=true'], version: '2.3.0')
 
 cpp = meson.get_compiler('cpp')
 message('cpp id: ' + cpp.get_id())
@@ -8,9 +6,9 @@ message('cpp id: ' + cpp.get_id())
 cc_id = cpp.get_id()
 
 if cc_id == 'gcc'
-    add_project_arguments(['-fmax-errors=1', '-Werror=unknown-pragmas'], language: 'cpp')
+    add_project_arguments(['-Werror=unknown-pragmas'], language: 'cpp')
 elif cc_id == 'clang'
-    add_project_arguments(['-ferror-limit=1', '-Werror=unknown-pragmas'], language: 'cpp')
+    add_project_arguments(['-Werror=unknown-pragmas'], language: 'cpp')
 elif cc_id == 'msvc'
 #  enable support of __VA_OPT__ 
     add_project_arguments(['/Zc:preprocessor'], language: 'cpp')

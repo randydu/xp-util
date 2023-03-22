@@ -44,7 +44,7 @@ public:
     }
 
 private:
-    std::unordered_set<void*> _searched;
+    std::unordered_set<void*> _searched{};
 };
 } // namespace detail
 
@@ -102,14 +102,15 @@ protected:
     ~TRefObj() override = default; // protected destructor to enforce heap-based allocation.
 private:
     int _count{0};
-    ref_monitor_t _monitor;
+    ref_monitor_t _monitor{};
 };
 
 template <typename T, typename... TArgs>
-auto make_ref(TArgs&&... args)
+constexpr xp::auto_ref<T> make_ref(TArgs&&... args)
 {
     static_assert(std::is_base_of_v<IRefObj, T>);
-    return new TRefObj<T>(std::forward<TArgs>(args)...);
+    xp::auto_ref<T> r(new TRefObj<T>(std::forward<TArgs>(args)...));
+    return r;
 }
 
 /**
@@ -149,10 +150,15 @@ class TInterface : public TRefObj<T>
 public:
     TInterface() = default;
 
+    TInterface(const TInterface&) = delete;
+    TInterface(TInterface&&) = delete;
+    TInterface& operator=(const TInterface&) = delete;
+    TInterface& operator=(TInterface&&) = delete;
+
     using parent_t::parent_t; // gsl C.52
 
     // IInterface
-    xp_error_code queryInterface(TIntfId iid, void** retIntf) override
+    xp_error_code queryInterface(TIntfId iid, IInterface** retIntf) override
     {
         if (equalIID(iid, IID(T)) || equalIID(iid, IID_IINTERFACE)) {
             this->ref();
@@ -175,8 +181,13 @@ class TMultiInterface : public TRefObj<T>
 public:
     using parent_t::parent_t; // gsl C.52
 
+    TMultiInterface(const TMultiInterface&) = delete;
+    TMultiInterface(TMultiInterface&&) = delete;
+    TMultiInterface& operator=(const TMultiInterface&) = delete;
+    TMultiInterface& operator=(TMultiInterface&&) = delete;
+
     // IInterface
-    xp_error_code queryInterface(TIntfId iid, void** retIntf) override
+    xp_error_code queryInterface(TIntfId iid, IInterface** retIntf) override
     {
         if (match_iid<S...>(iid, retIntf)) {
             return xp_error_code::OK;
@@ -195,7 +206,7 @@ protected:
 
 private:
     template <typename U, typename... V>
-    bool match_iid(TIntfId iid, void** retIntf)
+    bool match_iid(TIntfId iid, IInterface** retIntf)
     {
         if (equalIID(iid, IID(U))) {
             this->ref();
@@ -211,14 +222,14 @@ private:
 };
 
 template <typename T, typename... TArgs>
-auto make_intf(TArgs&&... args)
+constexpr auto make_intf(TArgs&&... args)
 {
     static_assert(std::is_base_of_v<IInterface, T>);
 
     if constexpr (std::is_constructible_v<T, TArgs...>) {
-        return new T(std::forward<TArgs>(args)...);
+        return xp::auto_ref<T>(new T(std::forward<TArgs>(args)...));
     } else {
-        return new TInterface<T>(std::forward<TArgs>(args)...);
+        return xp::auto_ref<TInterface<T>>(new TInterface<T>(std::forward<TArgs>(args)...));
     }
 }
 
@@ -254,7 +265,7 @@ auto make_intf(TArgs&&... args)
  *  bus->connect(new TInterfaceEx<Impl_Hello>()); //bus connection.
  *
  *  IHello* hello;
- *  if(0 == bus->queryInterface("IHello", (void**)&hello){
+ *  if(0 == bus->queryInterface("IHello", (IInterface**)&hello){
  *    hello->sayHello(); //==> "Hello World!"
  *    hello->unref();
  *  }
@@ -270,8 +281,12 @@ class TInterfaceEx : public TRefObj<T>
 public:
     using parent_t::parent_t; // gsl C.52
 
+    TInterfaceEx(const TInterfaceEx&) = delete;
+    TInterfaceEx(TInterfaceEx&&) = delete;
+    TInterfaceEx& operator=(const TInterfaceEx&) = delete;
+    TInterfaceEx& operator=(TInterfaceEx&&) = delete;
     // IInterface
-    xp_error_code queryInterface(TIntfId iid, void** retIntf) override
+    xp_error_code queryInterface(TIntfId iid, IInterface** retIntf) override
     {
         Expects(!_cleared);
 
@@ -279,7 +294,7 @@ public:
         return queryInterfaceEx(iid, retIntf, qst);
     }
     // IInterfaceEx
-    xp_error_code queryInterfaceEx(TIntfId iid, void** retIntf, IQueryState& qst) override
+    xp_error_code queryInterfaceEx(TIntfId iid, IInterface** retIntf, IQueryState& qst) override
     {
         if constexpr (check_iid) { // multi-interfaceex check by iteself; also fix ambiguous T::iid compiling issue when T inherits multiple interfaces.
             if (equalIID(iid, IID(T)) || equalIID(iid, IID_IINTERFACEEX) || equalIID(iid, IID_IINTERFACE)) {
@@ -314,7 +329,7 @@ protected:
     ~TInterfaceEx() override = default;
     virtual void onClear() {} // called when the finish() is invokded. subclass may override this to release managed resources before destructor.
 
-    xp_error_code searchBus(TIntfId iid, void** retIntf, IQueryState& qst)
+    xp_error_code searchBus(TIntfId iid, IInterface** retIntf, IQueryState& qst)
     {
         return _bus ? resolve(_bus, iid, retIntf, qst) : xp_error_code::INTF_NOT_RESOLVED;
     }
@@ -330,14 +345,14 @@ private:
 };
 
 template <typename T, typename... TArgs>
-auto make_intfx(TArgs&&... args)
+constexpr auto make_intfx(TArgs&&... args)
 {
     static_assert(std::is_base_of_v<IInterfaceEx, T>);
 
     if constexpr (std::is_constructible_v<T, TArgs...>) {
-        return new T(std::forward<TArgs>(args)...);
+        return xp::auto_ref<T>(new T(std::forward<TArgs>(args)...));
     } else {
-        return new TInterfaceEx<T>(std::forward<TArgs>(args)...);
+        return xp::auto_ref<TInterfaceEx<T>>(new TInterfaceEx<T>(std::forward<TArgs>(args)...));
     }
 }
 
@@ -348,6 +363,11 @@ class TMultiInterfaceEx : public TInterfaceEx<T, false>
 
 public:
     using parent_t::parent_t; // gsl C.52
+
+    TMultiInterfaceEx(const TMultiInterfaceEx&) = delete;
+    TMultiInterfaceEx(TMultiInterfaceEx&&) = delete;
+    TMultiInterfaceEx& operator=(const TMultiInterfaceEx&) = delete;
+    TMultiInterfaceEx& operator=(TMultiInterfaceEx&&) = delete;
 
     // First interface-ex provided
     // When connecting to bus, to avoid IInterfaceEx ambiguous due to multiple IInterfaceEx inheritance.
@@ -360,20 +380,20 @@ public:
 
     using parent_t::queryInterface;
 
-    xp_error_code queryInterfaceEx(TIntfId iid, void** retIntf, IQueryState& qst) override
+    xp_error_code queryInterfaceEx(TIntfId iid, IInterface** retIntf, IQueryState& qst) override
     {
         if (match_iid<S...>(iid, retIntf)) {
             return xp_error_code::OK;
         }
 
-        parent_t* p = static_cast<parent_t*>(this);
+        // parent_t* p = static_cast<parent_t*>(this);
         if (equalIID(iid, IID_IINTERFACEEX) || equalIID(iid, IID_IINTERFACE)) {
             this->ref();
-            *retIntf = p;
+            *retIntf = first_service();
             return xp_error_code::OK;
         }
 
-        qst.addSearched(p);
+        qst.addSearched(this);
 
         return this->searchBus(iid, retIntf, qst);
     }
@@ -383,7 +403,7 @@ protected:
 
 private:
     template <typename U, typename... V>
-    bool match_iid(TIntfId iid, void** retIntf)
+    constexpr bool match_iid(TIntfId iid, IInterface** retIntf)
     {
         if (equalIID(iid, IID(U))) {
             this->ref();
@@ -465,8 +485,13 @@ class TInterfaceBase : virtual public TRefObj<T>, virtual public S...
 public:
     TInterfaceBase() = default;
 
+    TInterfaceBase(const TInterfaceBase&) = delete;
+    TInterfaceBase(TInterfaceBase&&) = delete;
+    TInterfaceBase& operator=(const TInterfaceBase&) = delete;
+    TInterfaceBase& operator=(TInterfaceBase&&) = delete;
+
     // IInterface
-    xp_error_code queryInterface(TIntfId iid, void** retIntf) override
+    xp_error_code queryInterface(TIntfId iid, IInterface** retIntf) override
     {
         if (equalIID(iid, IID(T)) || equalIID(iid, IID_IINTERFACE)) {
             this->ref();
@@ -488,7 +513,7 @@ protected:
 
 private:
     template <typename U, typename... V>
-    bool match_iid(TIntfId iid, void** retIntf)
+    bool match_iid(TIntfId iid, IInterface** retIntf)
     {
         if (equalIID(iid, IID(U))) {
             this->ref();
@@ -547,8 +572,13 @@ class TInterfaceExBase : virtual public TRefObj<IInterfaceEx>, virtual protected
 public:
     TInterfaceExBase() = default;
 
+    TInterfaceExBase(const TInterfaceExBase&) = delete;
+    TInterfaceExBase(TInterfaceExBase&&) = delete;
+    TInterfaceExBase& operator=(const TInterfaceExBase&) = delete;
+    TInterfaceExBase& operator=(TInterfaceExBase&&) = delete;
+
     // IInterfaceEx
-    xp_error_code queryInterfaceEx(TIntfId iid, void** retIntf, IQueryState& qst) override
+    xp_error_code queryInterfaceEx(TIntfId iid, IInterface** retIntf, IQueryState& qst) override
     {
         if (equalIID(iid, IID_IINTERFACEEX) || equalIID(iid, IID_IINTERFACE)) {
             this->ref();
@@ -582,7 +612,7 @@ public:
     }
 
     // IInterface
-    xp_error_code queryInterface(TIntfId iid, void** retIntf) override
+    xp_error_code queryInterface(TIntfId iid, IInterface** retIntf) override
     {
         Expects(!_cleared);
 
@@ -600,7 +630,7 @@ private:
     bool _cleared{false}; // any apis should not be called any more
 
     template <typename U, typename... V>
-    bool match_iid(TIntfId iid, void** retIntf)
+    bool match_iid(TIntfId iid, IInterface** retIntf)
     {
         if (equalIID(iid, IID(U))) {
             this->ref();
@@ -621,10 +651,14 @@ class TBus : public TInterfaceEx<IBus, false>
 {
 public:
     explicit TBus(int busLevel = 0) : _level(busLevel) {}
+    TBus(const TBus&) = delete;
+    TBus& operator=(const TBus&) = delete;
+    TBus(TBus&&) = delete;
+    TBus& operator=(TBus&&) = delete;
 
-    int total_intfs() const { return _intfs.size(); }
-    int total_buses() const { return _buses.size(); }
-    int total_siblings() const { return _siblings.size(); }
+    auto total_intfs() const { return _intfs.size(); }
+    auto total_buses() const { return _buses.size(); }
+    auto total_siblings() const { return _siblings.size(); }
 
     // IBus
     [[nodiscard]] bool connect(gsl::not_null<IInterfaceEx*> intf, int order = 0) override
@@ -634,10 +668,10 @@ public:
         if (intf == this) return false; // no loop-back.
 
 
-        IBus* bus;
+        IBus* bus{nullptr};
         detail::QueryState qst;
-        if (intf->queryInterfaceEx(IID_IBUS, (void**)&bus, qst) == xp_error_code::OK) {
-            ON_EXIT(bus->unref();); // balance queryInterface
+        if (intf->queryInterfaceEx(IID_IBUS, (IInterface**)&bus, qst) == xp_error_code::OK) { // NOLINT
+            ON_EXIT(bus->unref());                                                            // balance queryInterface
 
             const int level = bus->level();
             if (level > _level) {
@@ -715,14 +749,16 @@ public:
             return;
         }
 
-        removeSiblingBus(static_cast<IBus*>(intf.get()));
+        if (intf->iid() == IBus::iid()) {
+            removeSiblingBus(intf->cast<IBus>());
+        }
     }
 
     int level() const override
     {
         return _level;
     }
-    IBus* findFirstBusByLevel(int busLevel) const override
+    IBus* findFirstBusByLevel(int busLevel) override
     {
         Expects(!this->finished());
 
@@ -730,7 +766,7 @@ public:
             return nullptr;
 
         if (_level == busLevel)
-            return (IBus*)this;
+            return this;
 
         for (auto bus : _buses) {
             if (auto p = bus->findFirstBusByLevel(busLevel); p) return p;
@@ -758,13 +794,13 @@ public:
         _siblings.erase(bus);
     }
 
-    xp_error_code queryInterfaceEx(TIntfId iid, void** retIntf, IQueryState& qst) override
+    xp_error_code queryInterfaceEx(TIntfId iid, IInterface** retIntf, IQueryState& qst) override
     {
         Expects(retIntf);
         *retIntf = nullptr;
 
         if (equalIID(iid, IID_IBUS) || equalIID(iid, IID_IINTERFACEEX) || equalIID(iid, IID_IINTERFACE)) {
-            *retIntf = (IInterfaceEx*)(this);
+            *retIntf = this;
             this->ref();
             return xp_error_code::OK;
         }
@@ -797,8 +833,8 @@ private:
     int _level; // busLevel
     // IBus* _bus; //hosting bus with a more secure level ( _bus->level() <= this->level() )
     std::vector<std::pair<int, IInterfaceEx*>> _intfs;
-    std::vector<IBus*> _buses;           // connected buses with less secure levels ( >= this->level() ), strong-referenced.
-    std::unordered_set<IBus*> _siblings; // bus with the same level as mine. (weak-referenced)
+    std::vector<IBus*> _buses{};           // connected buses with less secure levels ( >= this->level() ), strong-referenced.
+    std::unordered_set<IBus*> _siblings{}; // bus with the same level as mine. (weak-referenced)
 
     void onClear() override
     {

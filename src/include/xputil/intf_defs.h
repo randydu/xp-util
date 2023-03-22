@@ -1,10 +1,10 @@
 #ifndef _XP_INTF_DEFS_H_
 #define _XP_INTF_DEFS_H_
 
-#include <cassert>
 #include <cstddef>
 #include <stdexcept>
 #include <unordered_set>
+#include <string>
 
 #if defined(_WIN_)
 #include <windows.h>
@@ -40,7 +40,7 @@ namespace xp {
  */
 
 // Calculate interface-id from a string
-inline auto calc_iid(gsl::not_null<const char*> id_str)
+inline const auto calc_iid(gsl::not_null<const char*> id_str)
 {
     return std::hash<std::string>{}(std::string(id_str));
 }
@@ -55,8 +55,6 @@ using TIntfId = decltype(calc_iid(""));
 //#define DECLARE_IID(x) static inline xp::TIntfId iid() {return x;}
 //#define DECLARE_IID(x) constexpr static auto iid = x
 
-
-#define CALC_IID(x) xp::calc_iid(x)
 
 #define DECLARE_IID(x)                   \
     inline static auto iid()             \
@@ -88,6 +86,12 @@ constexpr bool equalIID(const TIntfId id1, const TIntfId id2)
 class IRefObj
 {
 public:
+    IRefObj() = default;
+
+    IRefObj(const IRefObj&) = delete;
+    IRefObj(IRefObj&&) = delete;
+    IRefObj& operator=(const IRefObj&) = delete;
+    IRefObj& operator=(IRefObj&&) = delete;
     /**
      * increase reference count
      */
@@ -107,7 +111,7 @@ public:
     virtual int count() const = 0;
 
 protected:
-    virtual ~IRefObj() = default; // heap-based only!
+    virtual ~IRefObj() = default;
 };
 
 
@@ -128,18 +132,16 @@ struct IInterface : virtual public IRefObj {
     /**
      *	Interface browsing, returns 0 if successful, non-zero error code if fails.
      */
-    virtual xp_error_code queryInterface(TIntfId iid, void** retIntf) = 0;
+    virtual xp_error_code queryInterface(TIntfId iid, IInterface** retIntf) = 0;
 
     // helper: detect if another interface is accessible
     bool supports(TIntfId iid)
     {
         IInterface* intf(nullptr);
-        if (this->queryInterface(iid, (void**)&intf) == xp_error_code::OK) {
-            assert(intf);
-            if (intf) {
-                intf->unrefNoDelete(); // balance queryInterface()
-                return true;
-            }
+        if (this->queryInterface(iid, &intf) == xp_error_code::OK) {
+            Expects(intf);
+            intf->unrefNoDelete(); // balance queryInterface()
+            return true;
         }
         return false;
     }
@@ -147,20 +149,20 @@ struct IInterface : virtual public IRefObj {
     template <typename T>
     T* cast()
     {
-        T* intf;
-        if (this->queryInterface(IID(T), (void**)&intf) != xp_error_code::OK) {
+        IInterface* intf{nullptr};
+        if (this->queryInterface(IID(T), &intf) != xp_error_code::OK) {
             return nullptr;
         }
         intf->unrefNoDelete(); // Balance counter (incremented within queryInterface)
-        return intf;
+        return static_cast<T*>(intf);
     }
 };
 
 template <typename T, typename F>
-constexpr T* intf_cast(gsl::not_null<F> from)
+constexpr T* intf_cast(const gsl::not_null<F> from)
 {
-    T* intf;
-    if (from->queryInterface(IID(T), (void**)&intf) != xp_error_code::OK) {
+    T* intf{nullptr};
+    if (from->queryInterface(IID(T), &intf) != xp_error_code::OK) {
         return nullptr;
     }
     intf->unrefNoDelete(); // Balance counter (incremented within queryInterface)
@@ -172,10 +174,16 @@ constexpr T* intf_cast(gsl::not_null<F> from)
 
 
 struct IQueryState {
+    IQueryState() = default;
+    virtual ~IQueryState() = default;
+
+    IQueryState(const IQueryState&) = delete;
+    IQueryState(IQueryState&&) = delete;
+    IQueryState& operator=(const IQueryState&) = delete;
+    IQueryState& operator=(IQueryState&&) = delete;
+
     virtual void addSearched(void*) = 0;
     virtual bool isSearched(void*) const = 0;
-
-    virtual ~IQueryState() = default;
 };
 
 struct IBus;
@@ -189,7 +197,7 @@ struct IInterfaceEx : public IInterface {
     /**
      *	Interface browsing, returns 0 if successful, non-zero error code if fails.
      */
-    virtual xp_error_code queryInterfaceEx(TIntfId iid, void** retIntf, IQueryState& qst) = 0;
+    virtual xp_error_code queryInterfaceEx(TIntfId iid, IInterface** retIntf, IQueryState& qst) = 0;
     /**
      * set the hosting bus
      */
@@ -220,7 +228,7 @@ struct IInterfaceEx : public IInterface {
  * @param qst current query helper
  * @return xp_error_code
  */
-inline xp_error_code resolve(gsl::not_null<IInterfaceEx*> pex, TIntfId iid, void** retIntf, IQueryState& qst)
+inline const xp_error_code resolve(gsl::not_null<IInterfaceEx*> pex, TIntfId iid, IInterface** retIntf, IQueryState& qst)
 {
     if (!qst.isSearched(pex)) {
         return pex->queryInterfaceEx(iid, retIntf, qst);
@@ -277,7 +285,7 @@ struct IBus : public IInterfaceEx {
      * Note there might be multiple buses with the same level in a complex bus network, and the programmer
      * should know what he is doing.
      */
-    virtual IBus* findFirstBusByLevel(int busLevel) const = 0;
+    virtual IBus* findFirstBusByLevel(int busLevel) = 0;
 
     /**
      *  add a sibling bus as a weak reference.
@@ -355,14 +363,14 @@ public:
     template <typename U>
     auto_ref(U from) : _intf{nullptr}
     {
-        if constexpr (std::is_same_v<U, nullptr_t>) {
+        if constexpr (std::is_same_v<U, std::nullptr_t>) {
             // void
         } else if constexpr (std::is_base_of<T, std::remove_pointer_t<U>>::value) {
             _intf = from;
             if (_intf)
                 _intf->ref();
         } else {
-            if (from != nullptr) from->queryInterface(IID(T), (void**)&_intf);
+            if (from != nullptr) from->queryInterface(IID(T), (IInterface**)&_intf);
         }
     }
 
@@ -378,9 +386,9 @@ public:
     }
 
     template <typename U>
-    void operator=(U intf)
+    auto_ref<T>& operator=(U intf)
     {
-        if constexpr (std::is_same_v<nullptr_t, U>) {
+        if constexpr (std::is_same_v<std::nullptr_t, U>) {
             clear(); // support = nullptr
         } else if constexpr (std::is_same_v<decltype(NULL), U>) {
             clear(); // support = NULL
@@ -395,9 +403,10 @@ public:
                         _intf->ref();
                 }
             } else {
-                intf->queryInterface(IID(T), (void**)&_intf);
+                intf->queryInterface(IID(T), (IInterface**)&_intf);
             }
         }
+        return *this;
     }
 
     auto_ref& operator=(const auto_ref& intf)

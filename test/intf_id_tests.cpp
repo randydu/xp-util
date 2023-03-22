@@ -2,6 +2,8 @@
 
 #include <xputil/intf_defs.h>
 
+#define CALC_IID(x) xp::calc_iid(x)
+
 // Make sure the interface-id algorithm is backward compatible.
 TEST_CASE("intf-id-test", "[intf_id]")
 {
