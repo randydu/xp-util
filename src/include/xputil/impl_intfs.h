@@ -22,6 +22,7 @@
 #include <stdexcept>
 #include <vector>
 #include <unordered_set>
+#include <mutex>
 
 #if defined(_MSC_VER)
 // disable false positive warning C4250: inherits via dominance
@@ -72,12 +73,16 @@ public:
     // IRefObj
     void ref() override
     {
+        std::lock_guard<std::mutex> lock(_mutex);
+
         if (_monitor)
             _monitor(this, _count, ref_api_t::REF);
         ++_count;
     }
     void unref() override
     {
+        std::lock_guard<std::mutex> lock(_mutex);
+
         if (_monitor)
             _monitor(this, _count, ref_api_t::UNREF);
         if (_count == 0)
@@ -88,21 +93,32 @@ public:
     }
     void unrefNoDelete() override
     {
+        std::lock_guard<std::mutex> lock(_mutex);
+
         if (_monitor)
             _monitor(this, _count, ref_api_t::UNREF_NODELETE);
         if (_count == 0)
             throw std::logic_error("::unrefNoDelete() >> ref-count is already 0.");
         --_count;
     }
-    int count() const override { return _count; }
+    int count() const override
+    {
+        std::lock_guard<std::mutex> lock(_mutex);
+        return _count;
+    }
 
-    void setMonitor(ref_monitor_t monitor) { _monitor = monitor; }
+    void setMonitor(ref_monitor_t monitor)
+    {
+        std::lock_guard<std::mutex> lock(_mutex);
+        _monitor = monitor;
+    }
 
 protected:
     ~TRefObj() override = default; // protected destructor to enforce heap-based allocation.
 private:
-    int _count{0};
-    ref_monitor_t _monitor{};
+    mutable std::mutex _mutex;
+    int _count{0};            // GUARDED_BY(_mutex)
+    ref_monitor_t _monitor{}; // GUARDED_BY(_mutex)
 };
 
 template <typename T, typename... TArgs>
@@ -656,9 +672,21 @@ public:
     TBus(TBus&&) = delete;
     TBus& operator=(TBus&&) = delete;
 
-    auto total_intfs() const { return _intfs.size(); }
-    auto total_buses() const { return _buses.size(); }
-    auto total_siblings() const { return _siblings.size(); }
+    auto total_intfs() const
+    {
+        std::lock_guard lock(_mutex);
+        return _intfs.size();
+    }
+    auto total_buses() const
+    {
+        std::lock_guard lock(_mutex);
+        return _buses.size();
+    }
+    auto total_siblings() const
+    {
+        std::lock_guard lock(_mutex);
+        return _siblings.size();
+    }
 
     // IBus
     [[nodiscard]] bool connect(gsl::not_null<IInterfaceEx*> intf, int order = 0) override
@@ -667,6 +695,7 @@ public:
 
         if (intf == this) return false; // no loop-back.
 
+        std::lock_guard lock(_mutex);
 
         IBus* bus{nullptr};
         detail::QueryState qst;
@@ -733,6 +762,7 @@ public:
 
     void disconnect(gsl::not_null<IInterfaceEx*> intf) override
     {
+        std::lock_guard lock(_mutex);
         Expects(!this->finished());
 
         // interfaces first
@@ -768,6 +798,7 @@ public:
         if (_level == busLevel)
             return this;
 
+        std::lock_guard lock(_mutex);
         for (auto bus : _buses) {
             if (auto p = bus->findFirstBusByLevel(busLevel); p) return p;
         }
@@ -782,6 +813,7 @@ public:
 
     void addSiblingBus(gsl::not_null<IBus*> bus) override
     {
+        std::lock_guard lock(_mutex);
         Expects(!this->finished());
 
         _siblings.insert(bus);
@@ -789,6 +821,7 @@ public:
 
     void removeSiblingBus(gsl::not_null<IBus*> bus) override
     {
+        std::lock_guard lock(_mutex);
         Expects(!this->finished());
 
         _siblings.erase(bus);
@@ -804,6 +837,8 @@ public:
             this->ref();
             return xp_error_code::OK;
         }
+
+        std::lock_guard lock(_mutex);
 
         qst.addSearched(this);
 
@@ -831,6 +866,8 @@ protected:
 
 private:
     int _level; // busLevel
+    mutable std::recursive_mutex _mutex;
+
     // IBus* _bus; //hosting bus with a more secure level ( _bus->level() <= this->level() )
     std::vector<std::pair<int, IInterfaceEx*>> _intfs;
     std::vector<IBus*> _buses{};           // connected buses with less secure levels ( >= this->level() ), strong-referenced.
@@ -838,11 +875,13 @@ private:
 
     void onClear() override
     {
+        std::lock_guard lock(_mutex);
         reset();
     }
 
     void reset()
     {
+        std::lock_guard lock(_mutex);
         Expects(!this->finished());
 
         for (auto p : _siblings) {
