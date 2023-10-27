@@ -81,13 +81,14 @@ public:
     }
     void unref() override
     {
-        std::lock_guard<std::mutex> lock(_mutex);
+        std::unique_lock<std::mutex> lock(_mutex);
 
         if (_monitor)
             _monitor(this, _count, ref_api_t::UNREF);
         if (_count == 0)
             throw std::logic_error("unref() >> ref-count is already 0.");
         if (--_count == 0) {
+            lock.unlock(); // make sure the _mutex is unlocked while destroying object.
             delete this;
         }
     }
