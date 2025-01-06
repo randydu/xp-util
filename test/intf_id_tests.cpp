@@ -9,9 +9,9 @@ TEST_CASE("intf-id-test", "[intf_id]")
 {
     using namespace xp;
 
-    CHECK(CALC_IID("") == 0x553e93901e462a6e);
-    CHECK(CALC_IID(" ") == 0xf8e5e1651bd01df3);
-    CHECK(IID_IINTERFACE == 0xdc1bb37e5ceab0cb);
-    CHECK(IID_IINTERFACEEX == 0x3137d9e333ec18e0);
-    CHECK(IID_IBUS == 0xddde57c5e192042a);
+    CHECK(CALC_IID("") == 5381);
+    CHECK(CALC_IID(" ") == 177605);
+    CHECK(IID_IINTERFACE == 0xa34b6dbd1d954bff);
+    CHECK(IID_IINTERFACEEX == 0xc6b1973a682b017c);
+    CHECK(IID_IBUS == 0xafd07334098fcc11);
 }

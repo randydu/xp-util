@@ -1,4 +1,4 @@
-project('xputil', 'cpp', default_options: ['cpp_std=c++20', 'werror=true'], version: '2.3.0')
+project('xputil', 'cpp', default_options: ['cpp_std=c++20', 'werror=true'], version: '2.4.0')
 
 cpp = meson.get_compiler('cpp')
 message('cpp id: ' + cpp.get_id())

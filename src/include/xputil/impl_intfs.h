@@ -16,7 +16,7 @@
 #include "on_exit.h"
 
 #include <algorithm>
-#include <assert.h>
+#include <cassert>
 #include <functional>
 #include <memory>
 #include <stdexcept>

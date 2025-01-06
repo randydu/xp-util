@@ -5,6 +5,8 @@
 #include <stdexcept>
 #include <unordered_set>
 #include <string>
+#include <algorithm>
+#include <cassert>
 
 #if defined(_WIN_)
 #include <windows.h>
@@ -42,8 +44,17 @@ namespace xp {
 // Calculate interface-id from a string
 inline const auto calc_iid(gsl::not_null<const char*> id_str)
 {
-    return std::hash<std::string>{}(std::string(id_str));
+    std::string id(id_str);
+
+    // DJB2 hash function
+    size_t hash = 5381;
+    for (char c : id) {
+        hash = ((hash << 5) + hash) + c; // hash * 33 + c
+    }
+
+    return hash;
 }
+
 using TIntfId = decltype(calc_iid(""));
 
 /**
